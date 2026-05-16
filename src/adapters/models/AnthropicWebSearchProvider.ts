@@ -53,7 +53,7 @@ export class AnthropicWebSearchProvider extends AnthropicProvider {
         max_tokens: req.maxTokens ?? 4096,
         temperature: req.temperature,
         system,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        messages,
         tools: [WEB_SEARCH_TOOL],
       } as unknown as Parameters<Anthropic['messages']['stream']>[0]);
 
@@ -92,10 +92,13 @@ export class AnthropicWebSearchProvider extends AnthropicProvider {
 
 function splitSystem(messages: { role: string; content: string }[]) {
   const sys: string[] = [];
-  const rest: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+  const rest: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const m of messages) {
-    if (m.role === 'system') sys.push(m.content);
-    else rest.push(m as { role: 'user' | 'assistant'; content: string });
+    if (m.role === 'system') {
+      sys.push(m.content);
+    } else if (m.role === 'user' || m.role === 'assistant') {
+      rest.push({ role: m.role, content: m.content });
+    }
   }
   return { system: sys.length ? sys.join('\n\n') : undefined, messages: rest };
 }

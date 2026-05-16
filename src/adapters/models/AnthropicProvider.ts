@@ -56,7 +56,7 @@ export class AnthropicProvider implements ModelProvider {
         max_tokens: req.maxTokens ?? 4096,
         temperature: req.temperature,
         system,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        messages,
       });
 
       let inputTokens = 0;
@@ -107,12 +107,18 @@ export class AnthropicProvider implements ModelProvider {
 /** Splits leading system message(s) out of a flat ChatMessage[] array. */
 function splitSystem(
   messages: ChatMessage[],
-): { system: string | undefined; messages: ChatMessage[] } {
+): {
+  system: string | undefined;
+  messages: { role: 'user' | 'assistant'; content: string }[];
+} {
   const sys: string[] = [];
-  const rest: ChatMessage[] = [];
+  const rest: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const m of messages) {
-    if (m.role === 'system') sys.push(m.content);
-    else rest.push(m);
+    if (m.role === 'system') {
+      sys.push(m.content);
+    } else {
+      rest.push({ role: m.role, content: m.content });
+    }
   }
   return { system: sys.length ? sys.join('\n\n') : undefined, messages: rest };
 }
