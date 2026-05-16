@@ -58,16 +58,21 @@ export class PdfParser implements DocumentParser {
    * Outline entries whose `dest` we can't resolve (corrupt anchors, named
    * destinations PDF.js doesn't know about) are silently dropped. This is
    * intentional — we'd rather under-segment than crash on a weird PDF.
+   *
+   * The `doc` parameter is typed loosely (`unknown` for `getPageIndex`'s
+   * arg) because PDF.js types `dest` as a strict `RefProxy` but in
+   * practice it also accepts string named destinations. We cast at the
+   * call site.
    */
   private async flattenOutline(
-    doc: { getPageIndex: (d: unknown) => Promise<number> },
+    doc: { getPageIndex: (d: never) => Promise<number> },
     nodes: OutlineNode[],
     acc: ParsedOutlineItem[] = [],
   ): Promise<ParsedOutlineItem[]> {
     for (const n of nodes) {
       if (n.dest !== undefined && n.dest !== null) {
         try {
-          const idx = await doc.getPageIndex(n.dest);
+          const idx = await doc.getPageIndex(n.dest as never);
           acc.push({ title: n.title, pageNumber: idx + 1 });
         } catch {
           // Skip unresolvable destination; see method JSDoc.

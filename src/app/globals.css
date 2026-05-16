@@ -1,26 +1,120 @@
+/* ============================================================================
+ * globals.css — Tailwind v4 base + Aether Reader Flow theme tokens.
+ *
+ * Theme tokens are runtime-driven CSS variables. The ThemeProvider (P5)
+ * writes the active theme's `ColorTokens` values onto `:root`. Tailwind
+ * utilities consume them via `var(--color-*)` because the `@theme` directive
+ * below maps each Tailwind color name to its variable.
+ *
+ * The default values defined here (羊皮纸 / sheepskin theme, light variant)
+ * are the only thing visible until P5's ThemeProvider hydrates. After
+ * hydration, every variable below is overwritten.
+ *
+ * NEVER hardcode hex values in components. Every color must be one of the
+ * tokens defined here.
+ * ========================================================================== */
+
 @import "tailwindcss";
 
+/* ---------- Default tokens: sheepskin / light ---------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --color-background: #FAF8F4;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #FFFFFF;
+
+  /* Text hierarchy */
+  --color-text: #2C2A28;
+  --color-text-muted: #5C5650;
+  --color-text-subtle: #8A847C;
+
+  /* Accent */
+  --color-accent: #C8783F;
+  --color-accent-hover: #B36830;
+  --color-selection: rgba(200, 120, 60, 0.22);
+
+  /* Status */
+  --color-success: #4A7C59;
+  --color-warning: #C49A3C;
+  --color-danger: #B33E2A;
+  --color-info: #5B7A96;
+
+  /* Separators */
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-divider: rgba(0, 0, 0, 0.04);
+
+  /* Glass material */
+  --color-glass-overlay: rgba(255, 255, 255, 0.72);
+  --color-glass-border: rgba(0, 0, 0, 0.06);
+  --color-glass-glow: rgba(200, 120, 60, 0.12);
+
+  /* Typography */
+  --font-serif: "Source Serif Pro", "Source Han Serif SC", "Noto Serif SC", serif;
+  --font-sans: "Inter", "Source Han Sans SC", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* User-overridable typography (FontPreferences, P4 T4.6) */
+  --user-font-family: var(--font-serif);
+  --reader-font-size: 17px;
+  --reader-line-height: 1.8;
 }
 
+/* ---------- Dark-mode tokens: sheepskin / dark ---------- */
+.dark {
+  --color-background: #1A1714;
+  --color-surface: #221F1B;
+  --color-surface-elevated: #2A2622;
+
+  --color-text: #E8E4DE;
+  --color-text-muted: #B5AEA4;
+  --color-text-subtle: #7A736A;
+
+  --color-accent: #D88F58;
+  --color-accent-hover: #E9A06A;
+  --color-selection: rgba(216, 143, 88, 0.28);
+
+  --color-success: #6FA67D;
+  --color-warning: #D4B257;
+  --color-danger: #D55E47;
+  --color-info: #8FA8C0;
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-divider: rgba(255, 255, 255, 0.04);
+
+  --color-glass-overlay: rgba(20, 18, 16, 0.6);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-glass-glow: rgba(216, 143, 88, 0.18);
+}
+
+/* ---------- Tailwind v4 @theme: expose tokens as utility colors ---------- */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-surface-elevated: var(--color-surface-elevated);
+  --color-foreground: var(--color-text);
+  --color-muted: var(--color-text-muted);
+  --color-subtle: var(--color-text-subtle);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-selection: var(--color-selection);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-info: var(--color-info);
+  --color-border: var(--color-border);
+  --color-divider: var(--color-divider);
+
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ---------- Base resets ---------- */
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
