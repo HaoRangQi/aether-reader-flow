@@ -22,7 +22,15 @@ export function BookList() {
   };
 
   useEffect(() => {
-    void reload();
+    let cancelled = false;
+    (async () => {
+      const list = await new IndexedDBBookRepo().list();
+      if (cancelled) return;
+      setBooks(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // While books is null (still loading IndexedDB), render nothing to avoid
