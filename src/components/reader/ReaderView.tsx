@@ -1,20 +1,36 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useReaderStore } from '@/stores/readerStore';
 import { IndexedDBBookRepo } from '@/adapters/storage/IndexedDBBookRepo';
 import { IndexedDBChapterRepo } from '@/adapters/storage/IndexedDBChapterRepo';
 import { ChapterNav } from './ChapterNav';
 import { ChapterContent } from './ChapterContent';
+import { SelectionPopover } from './SelectionPopover';
+import { AISidebar } from './AISidebar';
+import { ChapterSummaryPanel } from './ChapterSummaryPanel';
+import { QuickUnlockDialog } from './QuickUnlockDialog';
+import { getVault } from '@/lib/ai-service-client';
+import { Sparkles, Lock, MessageSquare } from 'lucide-react';
 
 /**
- * Two-column reader: chapter nav (left) + chapter body (center).
- *
- * Right rail (AI sidebar + Timeline panel) lands in P2/P3.
+ * Reader view: three-column layout (nav + content + AI sidebar).
+ * Toolbar above content offers: 章节总结 / AI 对话 / 解锁 AI.
  */
 export function ReaderView({ bookId }: { bookId: string }) {
-  const { book, setBook, setChapters } = useReaderStore();
+  const {
+    book,
+    setBook,
+    setChapters,
+    setSummaryOpen,
+    setSidebarOpen,
+    summaryOpen,
+    sidebarOpen,
+    setThreadAnchor,
+  } = useReaderStore();
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [vaultUnlocked, setVaultUnlocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +46,17 @@ export function ReaderView({ bookId }: { bookId: string }) {
       cancelled = true;
     };
   }, [bookId, setBook, setChapters]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setVaultUnlocked(getVault().unlocked);
+  }, [unlockOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const openSidebarFresh = () => {
+    setThreadAnchor(null);
+    setSidebarOpen(true);
+  };
 
   return (
     <div className="flex h-screen">
@@ -53,9 +80,67 @@ export function ReaderView({ bookId }: { bookId: string }) {
         <ChapterNav />
       </aside>
 
-      <main className="flex-1 overflow-y-auto py-12 px-8">
-        <ChapterContent />
+      <main className="flex-1 overflow-y-auto relative">
+        <div className="sticky top-0 z-10 flex items-center justify-end gap-2 px-6 py-3 backdrop-blur-md bg-[var(--color-background)]/80 border-b border-divider/50">
+          <ToolbarButton
+            onClick={() => setSummaryOpen(!summaryOpen)}
+            icon={<Sparkles size={14} />}
+            label="章节总结"
+            active={summaryOpen}
+          />
+          <ToolbarButton
+            onClick={openSidebarFresh}
+            icon={<MessageSquare size={14} />}
+            label="AI 对话"
+            active={sidebarOpen}
+          />
+          <ToolbarButton
+            onClick={() => setUnlockOpen(true)}
+            icon={<Lock size={14} />}
+            label={vaultUnlocked ? '已解锁' : '解锁 AI'}
+            active={vaultUnlocked}
+          />
+        </div>
+
+        <div className="py-12 px-8">
+          <ChapterSummaryPanel />
+          <ChapterContent />
+        </div>
       </main>
+
+      <AISidebar />
+      <SelectionPopover />
+      <QuickUnlockDialog
+        open={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        onUnlocked={() => setVaultUnlocked(true)}
+      />
     </div>
+  );
+}
+
+function ToolbarButton({
+  onClick,
+  icon,
+  label,
+  active,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition ${
+        active
+          ? 'bg-accent text-white'
+          : 'text-muted hover:text-foreground hover:bg-surface-elevated'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }

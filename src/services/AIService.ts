@@ -197,96 +197,46 @@ export class AIService {
   // ---- Dispatcher ---------------------------------------------------------
 
   private dispatch(args: DispatchArgs): DispatchResult {
-    let doneResolve: (e: TimelineEntry) => void;
-    let doneReject: (e: Error) => void;
+    let doneResolve!: (e: TimelineEntry) => void;
+    let doneReject!: (e: Error) => void;
     const done = new Promise<TimelineEntry>((resolve, reject) => {
       doneResolve = resolve;
       doneReject = reject;
     });
 
-    const self = this;
-    async function* gen(): AsyncGenerator<ChatChunk, void, void> {
-      try {
-        const ref = args.options?.modelOverride ?? (await self.resolveModelRef(args.taskType));
-        const service = await self.loadService(ref.serviceId);
-        const apiKey = await self.vault.getApiKey(ref.serviceId);
-
-        const envelope = {
-          ...args.body,
-          serviceId: service.id,
-          modelId: ref.modelId,
-          protocol: service.protocol,
-          baseUrl: service.baseUrl,
-          apiKey,
-          maxTokens: args.options?.maxTokens,
-        };
-
-        const res = await fetch(TASK_TO_PATH[args.taskType], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(envelope),
-        });
-        if (!res.ok || !res.body) {
-          const text = await res.text().catch(() => '');
-          throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let aiResponse = '';
-        let inputTokens = 0;
-        let outputTokens = 0;
-        let streamError: string | null = null;
-
-        while (true) {
-          const { value, done: streamDone } = await reader.read();
-          if (streamDone) break;
-          buffer += decoder.decode(value, { stream: true });
-          let nl: number;
-          while ((nl = buffer.indexOf('\n')) !== -1) {
-            const line = buffer.slice(0, nl).trim();
-            buffer = buffer.slice(nl + 1);
-            if (!line) continue;
-            let chunk: ChatChunk;
-            try {
-              chunk = JSON.parse(line) as ChatChunk;
-            } catch {
-              continue;
-            }
-            if (chunk.type === 'text' && chunk.text) aiResponse += chunk.text;
-            if (chunk.type === 'usage') {
-              inputTokens = chunk.inputTokens ?? 0;
-              outputTokens = chunk.outputTokens ?? 0;
-            }
-            if (chunk.type === 'error') streamError = chunk.error ?? 'stream error';
-            yield chunk;
-          }
-        }
-
-        if (streamError) throw new Error(streamError);
-
-        const entry = await self.persistEntry({
-          args,
-          modelId: ref.modelId,
-          aiResponse,
-          inputTokens,
-          outputTokens,
-        });
-        doneResolve(entry);
-      } catch (e) {
-        const err = e instanceof Error ? e : new Error(String(e));
-        yield { type: 'error', error: err.message };
-        doneReject(err);
-      }
-    }
-
-    return { chunks: gen(), done };
+    const chunks = streamAndPersist(this, args, doneResolve, doneReject);
+    return { chunks, done };
   }
 
   private async resolveModelRef(taskType: TaskType): Promise<ModelRef> {
     const routing = await this.config.getTaskRouting();
     return routing[taskType];
+  }
+
+  /** @internal */
+  async _resolveModelRef(taskType: TaskType): Promise<ModelRef> {
+    return this.resolveModelRef(taskType);
+  }
+
+  /** @internal */
+  async _loadService(serviceId: string): Promise<ModelService> {
+    return this.loadService(serviceId);
+  }
+
+  /** @internal */
+  async _getApiKey(serviceId: string): Promise<string> {
+    return this.vault.getApiKey(serviceId);
+  }
+
+  /** @internal */
+  async _persistEntry(input: {
+    args: DispatchArgs;
+    modelId: string;
+    aiResponse: string;
+    inputTokens: number;
+    outputTokens: number;
+  }): Promise<TimelineEntry> {
+    return this.persistEntry(input);
   }
 
   private async loadService(serviceId: string): Promise<ModelService> {
@@ -343,5 +293,90 @@ export class AIService {
       taskType: args.taskType,
     });
     return entry;
+  }
+}
+
+/**
+ * Module-scope helper that runs the streaming dispatch. Lives outside the
+ * class so it doesn't capture `this`, which lets us avoid `this`-aliasing.
+ */
+async function* streamAndPersist(
+  svc: AIService,
+  args: DispatchArgs,
+  doneResolve: (e: TimelineEntry) => void,
+  doneReject: (e: Error) => void,
+): AsyncGenerator<ChatChunk, void, void> {
+  try {
+    const ref = args.options?.modelOverride ?? (await svc._resolveModelRef(args.taskType));
+    const service = await svc._loadService(ref.serviceId);
+    const apiKey = await svc._getApiKey(ref.serviceId);
+
+    const envelope = {
+      ...args.body,
+      serviceId: service.id,
+      modelId: ref.modelId,
+      protocol: service.protocol,
+      baseUrl: service.baseUrl,
+      apiKey,
+      maxTokens: args.options?.maxTokens,
+    };
+
+    const res = await fetch(TASK_TO_PATH[args.taskType], {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(envelope),
+    });
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let aiResponse = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let streamError: string | null = null;
+
+    while (true) {
+      const { value, done: streamDone } = await reader.read();
+      if (streamDone) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+        let chunk: ChatChunk;
+        try {
+          chunk = JSON.parse(line) as ChatChunk;
+        } catch {
+          continue;
+        }
+        if (chunk.type === 'text' && chunk.text) aiResponse += chunk.text;
+        if (chunk.type === 'usage') {
+          inputTokens = chunk.inputTokens ?? 0;
+          outputTokens = chunk.outputTokens ?? 0;
+        }
+        if (chunk.type === 'error') streamError = chunk.error ?? 'stream error';
+        yield chunk;
+      }
+    }
+
+    if (streamError) throw new Error(streamError);
+
+    const entry = await svc._persistEntry({
+      args,
+      modelId: ref.modelId,
+      aiResponse,
+      inputTokens,
+      outputTokens,
+    });
+    doneResolve(entry);
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    yield { type: 'error', error: err.message };
+    doneReject(err);
   }
 }

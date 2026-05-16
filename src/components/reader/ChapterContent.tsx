@@ -1,17 +1,55 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useReaderStore } from '@/stores/readerStore';
 
 /**
  * Chapter body. Renders the raw text inside a 720px column at the font
- * size / line height the user picked (P4 FontPreferences feeds these vars).
+ * size / line height the user picked.
  *
- * `whitespace-pre-wrap` preserves the line breaks that PDF.js inserted
- * between pages — better than losing them. P5 will add a content
- * normalization pass (de-hyphenate, join paragraph fragments) if needed.
+ * Selection detection: on mouseup inside our container, if the selection
+ * lies within the chapter text, we compute character offsets and write
+ * `selection` into `readerStore`. The `SelectionPopover` reacts and pops.
  */
 export function ChapterContent() {
   const chapter = useReaderStore(s => s.currentChapter());
+  const setSelection = useReaderStore(s => s.setSelection);
+  const containerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onMouseUp = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        setSelection(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      // Confirm the selection is entirely within our chapter content node.
+      const textEl = el.querySelector('[data-chapter-text]');
+      if (!textEl || !textEl.contains(range.commonAncestorContainer)) {
+        return;
+      }
+      const text = sel.toString().trim();
+      if (text.length === 0) {
+        setSelection(null);
+        return;
+      }
+
+      // Compute character offsets relative to the chapter text node.
+      const fullText = textEl.textContent ?? '';
+      // Use a simple substring search — chapters are < 100k chars and the
+      // selection is usually unique enough that the first occurrence is correct.
+      const start = fullText.indexOf(text);
+      const end = start + text.length;
+      setSelection({ text, start, end });
+    };
+
+    el.addEventListener('mouseup', onMouseUp);
+    return () => el.removeEventListener('mouseup', onMouseUp);
+  }, [setSelection]);
 
   if (!chapter) {
     return (
@@ -23,6 +61,7 @@ export function ChapterContent() {
 
   return (
     <article
+      ref={containerRef}
       className="max-w-[720px] mx-auto text-foreground"
       style={{
         fontFamily: 'var(--user-font-family)',
@@ -36,7 +75,10 @@ export function ChapterContent() {
         </div>
         <h1 className="text-3xl font-serif">{chapter.title}</h1>
       </header>
-      <div className="whitespace-pre-wrap leading-relaxed">
+      <div
+        data-chapter-text
+        className="whitespace-pre-wrap leading-relaxed select-text"
+      >
         {chapter.content}
       </div>
     </article>
