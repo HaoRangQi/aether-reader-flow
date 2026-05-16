@@ -10,9 +10,11 @@ import { ChapterContent } from './ChapterContent';
 import { SelectionPopover } from './SelectionPopover';
 import { AISidebar } from './AISidebar';
 import { ChapterSummaryPanel } from './ChapterSummaryPanel';
+import { TimelinePanel } from './TimelinePanel';
 import { QuickUnlockDialog } from './QuickUnlockDialog';
+import { useTimelineStore } from '@/stores/timelineStore';
 import { getVault } from '@/lib/ai-service-client';
-import { Sparkles, Lock, MessageSquare } from 'lucide-react';
+import { Sparkles, Lock, MessageSquare, ScrollText } from 'lucide-react';
 
 /**
  * Reader view: three-column layout (nav + content + AI sidebar).
@@ -31,6 +33,8 @@ export function ReaderView({ bookId }: { bookId: string }) {
   } = useReaderStore();
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [vaultUnlocked, setVaultUnlocked] = useState(false);
+  const timelineOpen = useTimelineStore(s => s.panelOpen);
+  const setTimelineOpen = useTimelineStore(s => s.setPanelOpen);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +99,12 @@ export function ReaderView({ bookId }: { bookId: string }) {
             active={sidebarOpen}
           />
           <ToolbarButton
+            onClick={() => setTimelineOpen(!timelineOpen)}
+            icon={<ScrollText size={14} />}
+            label="时间轴"
+            active={timelineOpen}
+          />
+          <ToolbarButton
             onClick={() => setUnlockOpen(true)}
             icon={<Lock size={14} />}
             label={vaultUnlocked ? '已解锁' : '解锁 AI'}
@@ -109,6 +119,7 @@ export function ReaderView({ bookId }: { bookId: string }) {
       </main>
 
       <AISidebar />
+      <TimelinePanel />
       <SelectionPopover />
       <QuickUnlockDialog
         open={unlockOpen}
