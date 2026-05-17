@@ -7,13 +7,13 @@ import { BookCard } from './BookCard';
 import { EmptyLibrary } from './EmptyLibrary';
 import { UploadDialog } from './UploadDialog';
 import { BookCardSkeleton } from '@/components/shared/Skeleton';
+import { useT } from '@/components/shared/I18nProvider';
 
 /**
  * Library view. Loads books from IndexedDB on mount and after every upload.
- * Future iterations may add sorting, filtering, and bulk actions, but for
- * MVP the simplest grid is enough.
  */
 export function BookList() {
+  const t = useT();
   const [books, setBooks] = useState<Book[] | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
 
@@ -39,7 +39,7 @@ export function BookList() {
     return (
       <div>
         <div className="flex items-center justify-between mb-8">
-          <h1 className="font-serif text-3xl">书架</h1>
+          <h1 className="font-serif text-3xl">{t('library.title')}</h1>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -53,12 +53,12 @@ export function BookList() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="font-serif text-3xl">书架</h1>
+        <h1 className="font-serif text-3xl">{t('library.title')}</h1>
         <button
           onClick={() => setUploadOpen(true)}
           className="rounded-md bg-accent text-white px-4 py-2 text-sm hover:bg-[var(--color-accent-hover)]"
         >
-          上传书籍
+          {t('library.upload')}
         </button>
       </div>
 

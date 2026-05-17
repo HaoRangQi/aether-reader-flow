@@ -5,21 +5,24 @@
  *
  * Section content is provided by the caller via the `sections` map so
  * each section's data flow is self-contained. State of "which section
- * is active" is local to the layout component.
+ * is active" is local to the layout component. All labels are i18n-aware.
  */
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { ArrowLeft } from 'lucide-react';
+import { useT } from '@/components/shared/I18nProvider';
+import type { TKey } from '@/lib/i18n';
 
-type SectionId = 'models' | 'routing' | 'budget' | 'theme' | 'font';
+export type SectionId = 'models' | 'routing' | 'budget' | 'theme' | 'font' | 'language';
 
-const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: 'models', label: '模型服务' },
-  { id: 'routing', label: '任务路由' },
-  { id: 'budget', label: '成本预算' },
-  { id: 'theme', label: '外观主题' },
-  { id: 'font', label: '阅读偏好' },
+const SECTIONS: { id: SectionId; labelKey: TKey }[] = [
+  { id: 'models', labelKey: 'settings.section.models' },
+  { id: 'routing', labelKey: 'settings.section.routing' },
+  { id: 'budget', labelKey: 'settings.section.budget' },
+  { id: 'theme', labelKey: 'settings.section.theme' },
+  { id: 'font', labelKey: 'settings.section.font' },
+  { id: 'language', labelKey: 'settings.section.language' },
 ];
 
 export interface SettingsLayoutProps {
@@ -27,6 +30,7 @@ export interface SettingsLayoutProps {
 }
 
 export function SettingsLayout({ sections }: SettingsLayoutProps) {
+  const t = useT();
   const [active, setActive] = useState<SectionId>('models');
 
   return (
@@ -36,10 +40,10 @@ export function SettingsLayout({ sections }: SettingsLayoutProps) {
           href="/"
           className="flex items-center gap-1 text-sm text-muted hover:text-foreground mb-4"
         >
-          <ArrowLeft size={14} /> 返回书架
+          <ArrowLeft size={14} /> {t('library.back')}
         </Link>
-        <h2 className="font-serif text-lg mb-4">设置</h2>
-        <nav className="space-y-1" aria-label="设置导航">
+        <h2 className="font-serif text-lg mb-4">{t('settings.title')}</h2>
+        <nav className="space-y-1" aria-label={t('settings.title')}>
           {SECTIONS.map(s => (
             <button
               key={s.id}
@@ -52,7 +56,7 @@ export function SettingsLayout({ sections }: SettingsLayoutProps) {
               )}
               aria-current={active === s.id ? 'page' : undefined}
             >
-              {s.label}
+              {t(s.labelKey)}
             </button>
           ))}
         </nav>

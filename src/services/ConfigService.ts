@@ -19,6 +19,7 @@
 import type { ConfigRepo } from '@/adapters/storage/interfaces';
 import type { ModelRef, TaskRouting } from '@/types/domain';
 import type { ThemeMode } from '@/types/theme';
+import type { Locale } from '@/lib/i18n';
 
 export interface ThemeConfig {
   id: string;
@@ -37,6 +38,8 @@ const KEYS = {
   routing: 'taskRouting',
   font: 'fontPrefs',
   budgetCNY: 'monthlyBudgetCNY',
+  /** null means "follow browser"; an explicit locale is the user's pin. */
+  localeOverride: 'localeOverride',
 } as const;
 
 const DEFAULT_REF_SONNET: ModelRef = {
@@ -96,5 +99,17 @@ export class ConfigService {
   }
   async setMonthlyBudgetCNY(amt: number): Promise<void> {
     await this.repo.set(KEYS.budgetCNY, amt);
+  }
+
+  /**
+   * Returns the user's explicit locale choice, or `null` if they want the
+   * UI to follow the browser. Decoupled from the actual rendered locale —
+   * the `I18nProvider` is in charge of combining this with browser detection.
+   */
+  async getLocaleOverride(): Promise<Locale | null> {
+    return (await this.repo.get<Locale | null>(KEYS.localeOverride)) ?? null;
+  }
+  async setLocaleOverride(locale: Locale | null): Promise<void> {
+    await this.repo.set(KEYS.localeOverride, locale);
   }
 }

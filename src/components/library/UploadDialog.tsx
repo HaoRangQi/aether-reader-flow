@@ -6,6 +6,7 @@ import { PdfParser } from '@/adapters/parsers/PdfParser';
 import { EpubParser } from '@/adapters/parsers/EpubParser';
 import { IndexedDBBookRepo } from '@/adapters/storage/IndexedDBBookRepo';
 import { IndexedDBChapterRepo } from '@/adapters/storage/IndexedDBChapterRepo';
+import { useT } from '@/components/shared/I18nProvider';
 
 interface Props {
   open: boolean;
@@ -20,13 +21,14 @@ const MAX_BYTES = 500 * 1024 * 1024;
  * client-side via `BookService.upload`, which routes to the right parser
  * based on MIME type / extension.
  *
- * UX details:
- *   - Native <input accept> is a hint, not a hard filter — some browsers
- *     still let users pick anything. We re-validate format on selection
- *     and on drop, giving a clear Chinese error before any parsing starts.
- *   - Drag-and-drop is supported; the drop zone shows a hover state.
+ * UX:
+ *   - Native <input accept> is a hint, not a hard filter — we re-validate
+ *     format/size on selection and on drop and give a clear localized error
+ *     before any parsing starts.
+ *   - Drag-and-drop supported with hover state.
  */
 export function UploadDialog({ open, onClose, onUploaded }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
@@ -34,16 +36,18 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
 
   if (!open) return null;
 
-  /** Synchronous pre-check before kicking off parsing. */
   const validate = (file: File): string | null => {
-    if (!file.name && !file.type) return '无法识别这个文件';
-    if (file.size === 0) return '文件是空的';
+    if (!file.name && !file.type) return t('upload.error.unrecognized');
+    if (file.size === 0) return t('upload.error.empty');
     if (file.size > MAX_BYTES) {
-      return `文件超出 ${MAX_BYTES / 1024 / 1024} MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)} MB）`;
+      return t('upload.error.tooLarge', {
+        limit: MAX_BYTES / 1024 / 1024,
+        size: (file.size / 1024 / 1024).toFixed(1),
+      });
     }
     const fmt = detectFormat(file, file.name);
     if (!fmt) {
-      return `暂不支持「${file.name || '该文件'}」。当前仅接受 PDF (.pdf) 与 EPUB (.epub)`;
+      return t('upload.error.unsupported', { name: file.name || '?' });
     }
     return null;
   };
@@ -58,7 +62,7 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
     }
     setBusy(true);
     const fmt = detectFormat(file, file.name)!;
-    setProgress(`正在解析 ${fmt.toUpperCase()}…`);
+    setProgress(`${t('upload.parsing')} ${fmt.toUpperCase()}…`);
     try {
       const svc = new BookService(
         { pdf: new PdfParser(), epub: new EpubParser() },
@@ -66,11 +70,11 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
         new IndexedDBChapterRepo(),
       );
       await svc.upload(file, file.name);
-      setProgress('完成');
+      setProgress(t('upload.done'));
       onUploaded();
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '上传失败';
+      const msg = e instanceof Error ? e.message : t('upload.failed');
       setError(msg);
       setProgress('');
     } finally {
@@ -99,11 +103,9 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
         onClick={e => e.stopPropagation()}
       >
         <div id="upload-dialog-title" className="text-xl font-serif mb-2">
-          上传书籍
+          {t('upload.title')}
         </div>
-        <div className="text-sm text-muted mb-4">
-          支持 <strong>PDF</strong> 与 <strong>EPUB</strong>。EPUB 章节结构基于 spine 自动识别，效果通常优于 PDF。
-        </div>
+        <div className="text-sm text-muted mb-4">{t('upload.description')}</div>
 
         <label
           onDragOver={e => {
@@ -118,10 +120,8 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
               : 'border-border hover:border-muted'
           } ${busy ? 'opacity-50 pointer-events-none' : ''}`}
         >
-          <div className="text-sm text-foreground mb-1">
-            点击选择文件，或拖拽到这里
-          </div>
-          <div className="text-xs text-subtle">.pdf · .epub · 最大 500MB</div>
+          <div className="text-sm text-foreground mb-1">{t('upload.dropzone')}</div>
+          <div className="text-xs text-subtle">{t('upload.formats')}</div>
           <input
             type="file"
             accept=".pdf,.epub,application/pdf,application/epub+zip"
@@ -129,7 +129,6 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
             onChange={e => {
               const f = e.target.files?.[0];
               if (f) void handleFile(f);
-              // 重置 input 让用户能重选同一个文件
               e.target.value = '';
             }}
             className="hidden"
@@ -152,7 +151,7 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
             disabled={busy}
             className="text-sm text-muted hover:text-foreground disabled:opacity-50"
           >
-            关闭
+            {t('upload.close')}
           </button>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { TaskRoutingConfig } from '@/components/settings/TaskRoutingConfig';
 import { BudgetConfig } from '@/components/settings/BudgetConfig';
 import { ThemePicker } from '@/components/settings/ThemePicker';
 import { FontPreferences } from '@/components/settings/FontPreferences';
+import { LanguagePicker } from '@/components/settings/LanguagePicker';
 
 export default function SettingsPage() {
   return (
@@ -17,6 +18,7 @@ export default function SettingsPage() {
         budget: <BudgetConfig />,
         theme: <ThemePicker />,
         font: <FontPreferences />,
+        language: <LanguagePicker />,
       }}
     />
   );

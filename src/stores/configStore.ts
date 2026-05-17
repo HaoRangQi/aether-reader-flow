@@ -26,12 +26,17 @@ import {
   type ThemeConfig,
 } from '@/services/ConfigService';
 import { IndexedDBConfigRepo } from '@/adapters/storage/IndexedDBConfigRepo';
+import { detectBrowserLocale, type Locale } from '@/lib/i18n';
 
 interface ConfigState {
   theme: ThemeConfig;
   routing: TaskRouting;
   font: FontPrefs;
   budgetCNY: number;
+  /** Resolved locale (overrride if set, otherwise browser detect). */
+  locale: Locale;
+  /** User's explicit choice; null means "follow browser". */
+  localeOverride: Locale | null;
   hydrated: boolean;
 
   hydrate: () => Promise<void>;
@@ -39,25 +44,45 @@ interface ConfigState {
   setRouting: (r: TaskRouting) => Promise<void>;
   setFont: (f: FontPrefs) => Promise<void>;
   setBudget: (n: number) => Promise<void>;
+  setLocaleOverride: (locale: Locale | null) => Promise<void>;
 }
 
 const svc = new ConfigService(new IndexedDBConfigRepo());
+
+/**
+ * Resolves the effective locale from an explicit override + browser detection.
+ * Override (if set) wins; otherwise we look at the navigator language.
+ */
+function resolveLocale(override: Locale | null): Locale {
+  return override ?? detectBrowserLocale();
+}
 
 export const useConfigStore = create<ConfigState>(set => ({
   theme: DEFAULT_THEME,
   routing: DEFAULT_TASK_ROUTING,
   font: DEFAULT_FONT_PREFS,
   budgetCNY: DEFAULT_MONTHLY_BUDGET_CNY,
+  locale: 'zh',
+  localeOverride: null,
   hydrated: false,
 
   hydrate: async () => {
-    const [theme, routing, font, budgetCNY] = await Promise.all([
+    const [theme, routing, font, budgetCNY, localeOverride] = await Promise.all([
       svc.getTheme(),
       svc.getTaskRouting(),
       svc.getFontPrefs(),
       svc.getMonthlyBudgetCNY(),
+      svc.getLocaleOverride(),
     ]);
-    set({ theme, routing, font, budgetCNY, hydrated: true });
+    set({
+      theme,
+      routing,
+      font,
+      budgetCNY,
+      localeOverride,
+      locale: resolveLocale(localeOverride),
+      hydrated: true,
+    });
   },
 
   setTheme: async t => {
@@ -75,5 +100,9 @@ export const useConfigStore = create<ConfigState>(set => ({
   setBudget: async n => {
     await svc.setMonthlyBudgetCNY(n);
     set({ budgetCNY: n });
+  },
+  setLocaleOverride: async localeOverride => {
+    await svc.setLocaleOverride(localeOverride);
+    set({ localeOverride, locale: resolveLocale(localeOverride) });
   },
 }));

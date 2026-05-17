@@ -12,6 +12,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ConfigHydrator } from "@/components/shared/ConfigHydrator";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
+import { I18nProvider } from "@/components/shared/I18nProvider";
 import { ToastContainer } from "@/components/shared/ToastContainer";
 import { NarrowViewportNotice } from "@/components/shared/NarrowViewportNotice";
 
@@ -30,8 +31,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ConfigHydrator />
         <ThemeProvider>
-          <NarrowViewportNotice />
-          {children}
+          <I18nProvider>
+            <NarrowViewportNotice />
+            {children}
+          </I18nProvider>
         </ThemeProvider>
         <ToastContainer />
       </body>

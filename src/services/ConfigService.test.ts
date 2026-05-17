@@ -48,4 +48,15 @@ describe('ConfigService', () => {
     await svc.setMonthlyBudgetCNY(500);
     expect(await svc.getMonthlyBudgetCNY()).toBe(500);
   });
+
+  it('returns null locale override by default (follow browser)', async () => {
+    expect(await svc.getLocaleOverride()).toBeNull();
+  });
+
+  it('persists locale override', async () => {
+    await svc.setLocaleOverride('en');
+    expect(await svc.getLocaleOverride()).toBe('en');
+    await svc.setLocaleOverride(null);
+    expect(await svc.getLocaleOverride()).toBeNull();
+  });
 });

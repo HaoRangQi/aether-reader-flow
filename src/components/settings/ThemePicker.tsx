@@ -2,14 +2,12 @@
 
 /**
  * @fileoverview ThemePicker — full 6-pack grid + light/dark/auto switcher.
- *
- * Each card shows mini light + dark swatches with accent + success dots
- * so users see what they're choosing.
  */
 
 import { useConfigStore } from '@/stores/configStore';
 import { THEMES } from '@/lib/themes';
 import type { ColorTokens } from '@/types/theme';
+import { useT } from '@/components/shared/I18nProvider';
 import clsx from 'clsx';
 
 interface ThemeCardProps {
@@ -18,9 +16,19 @@ interface ThemeCardProps {
   tokens: { light: ColorTokens; dark: ColorTokens };
   selected: boolean;
   onClick: () => void;
+  ariaLabel: string;
+  labels: { light: string; dark: string };
 }
 
-function ThemeCard({ id, name, tokens, selected, onClick }: ThemeCardProps) {
+function ThemeCard({
+  id,
+  name,
+  tokens,
+  selected,
+  onClick,
+  ariaLabel,
+  labels,
+}: ThemeCardProps) {
   return (
     <button
       onClick={onClick}
@@ -31,12 +39,12 @@ function ThemeCard({ id, name, tokens, selected, onClick }: ThemeCardProps) {
           : 'border-border hover:border-muted',
       )}
       aria-pressed={selected}
-      aria-label={`选择 ${name} 主题`}
+      aria-label={ariaLabel}
       data-theme-id={id}
     >
       <div className="flex gap-2">
-        <Swatch tokens={tokens.light} label="浅" />
-        <Swatch tokens={tokens.dark} label="深" />
+        <Swatch tokens={tokens.light} label={labels.light} />
+        <Swatch tokens={tokens.dark} label={labels.dark} />
       </div>
       <div className="font-serif text-sm text-foreground">{name}</div>
     </button>
@@ -60,30 +68,36 @@ function Swatch({ tokens, label }: { tokens: ColorTokens; label: string }) {
 }
 
 export function ThemePicker() {
+  const t = useT();
   const { theme, setTheme } = useConfigStore();
+  // For en locale we want short labels "L"/"D"; zh keeps 浅/深
+  const swatchLabels = {
+    light: t('settings.theme.mode.light').slice(0, 1),
+    dark: t('settings.theme.mode.dark').slice(0, 1),
+  };
 
   return (
     <div>
-      <h1 className="font-serif text-2xl mb-2">外观主题</h1>
-      <p className="text-sm text-muted mb-8">
-        每个主题包含浅色与深色两套配色，模式可独立切换。
-      </p>
+      <h1 className="font-serif text-2xl mb-2">{t('settings.theme.title')}</h1>
+      <p className="text-sm text-muted mb-8">{t('settings.theme.description')}</p>
 
-      <h3 className="text-sm text-muted mb-3">主题包</h3>
+      <h3 className="text-sm text-muted mb-3">{t('settings.theme.packs')}</h3>
       <div className="grid grid-cols-3 gap-3 mb-8">
-        {THEMES.map(t => (
+        {THEMES.map(th => (
           <ThemeCard
-            key={t.id}
-            id={t.id}
-            name={t.name}
-            tokens={{ light: t.light, dark: t.dark }}
-            selected={theme.id === t.id}
-            onClick={() => void setTheme({ ...theme, id: t.id })}
+            key={th.id}
+            id={th.id}
+            name={th.name}
+            tokens={{ light: th.light, dark: th.dark }}
+            selected={theme.id === th.id}
+            onClick={() => void setTheme({ ...theme, id: th.id })}
+            ariaLabel={`${t('settings.theme.packs')}: ${th.name}`}
+            labels={swatchLabels}
           />
         ))}
       </div>
 
-      <h3 className="text-sm text-muted mb-3">模式</h3>
+      <h3 className="text-sm text-muted mb-3">{t('settings.theme.mode')}</h3>
       <div className="flex gap-2">
         {(['light', 'dark', 'auto'] as const).map(m => (
           <button
@@ -97,7 +111,11 @@ export function ThemePicker() {
             )}
             aria-pressed={theme.mode === m}
           >
-            {m === 'light' ? '浅色' : m === 'dark' ? '深色' : '跟随系统'}
+            {m === 'light'
+              ? t('settings.theme.mode.light')
+              : m === 'dark'
+                ? t('settings.theme.mode.dark')
+                : t('settings.theme.mode.auto')}
           </button>
         ))}
       </div>
