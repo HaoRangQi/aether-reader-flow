@@ -20,9 +20,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
+import { ModelSwitcher } from '@/components/shared/ModelSwitcher';
 import { useReaderStore } from '@/stores/readerStore';
+import { useCostStore } from '@/stores/costStore';
 import { getAIService } from '@/lib/ai-service-client';
-import type { TimelineEntry } from '@/types/domain';
+import type { TimelineEntry, ModelRef } from '@/types/domain';
 import { X, Send } from 'lucide-react';
 
 interface ChatTurn {
@@ -46,6 +48,7 @@ export function AISidebar() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [modelOverride, setModelOverride] = useState<ModelRef | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Reset turns when the anchor changes (new thread)
@@ -92,6 +95,7 @@ export function AISidebar() {
         threadId: threadAnchor?.threadId ?? `thread-${crypto.randomUUID()}`,
         bookId: book.id,
         chapterId: chapter.id,
+        options: modelOverride ? { modelOverride } : undefined,
       });
 
       let buffer = '';
@@ -123,6 +127,7 @@ export function AISidebar() {
         next[next.length - 1] = { role: 'assistant', content: buffer, streaming: false };
         return next;
       });
+      void useCostStore.getState().refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setTurns(prev => {
@@ -162,6 +167,13 @@ export function AISidebar() {
                 「{threadAnchor.originalText}」
               </div>
             )}
+            <div className="mt-2">
+              <ModelSwitcher
+                taskType="chat"
+                override={modelOverride}
+                onOverride={setModelOverride}
+              />
+            </div>
           </div>
           <button
             onClick={close}

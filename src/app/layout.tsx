@@ -11,6 +11,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ConfigHydrator } from "@/components/shared/ConfigHydrator";
+import { ToastContainer } from "@/components/shared/ToastContainer";
 
 export const metadata: Metadata = {
   title: "Aether Reader Flow",
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ConfigHydrator />
         {children}
+        <ToastContainer />
       </body>
     </html>
   );

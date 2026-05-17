@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { useReaderStore } from '@/stores/readerStore';
+import { useCostStore } from '@/stores/costStore';
 import { getAIService } from '@/lib/ai-service-client';
 import type { TaskType } from '@/types/domain';
 import { Globe, MessageSquare, Languages, BookOpen, X } from 'lucide-react';
@@ -124,6 +125,7 @@ export function SelectionPopover() {
       }
       await r.done;
       setResult({ type, text: buffer, streaming: false });
+      void useCostStore.getState().refresh();
     } catch (e) {
       setResult({
         type,

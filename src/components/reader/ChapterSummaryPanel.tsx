@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { useReaderStore } from '@/stores/readerStore';
+import { useCostStore } from '@/stores/costStore';
 import { getAIService } from '@/lib/ai-service-client';
 import { IndexedDBChapterRepo } from '@/adapters/storage/IndexedDBChapterRepo';
 import type { ChapterSummary } from '@/types/domain';
@@ -107,6 +108,7 @@ export function ChapterSummaryPanel() {
 
       // Cache on the chapter row so reopening doesn't re-run
       await new IndexedDBChapterRepo().update(chapter.id, { summaryCache: parsed });
+      void useCostStore.getState().refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

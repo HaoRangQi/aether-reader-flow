@@ -1,15 +1,13 @@
-/**
- * Library home page. Renders a client-side BookList because all data lives
- * in IndexedDB (browser-only).
- */
 import Link from 'next/link';
 import { BookList } from '@/components/library/BookList';
+import { BudgetIndicator } from '@/components/shared/BudgetIndicator';
 import { Settings } from 'lucide-react';
 
 export default function HomePage() {
   return (
     <main className="max-w-6xl mx-auto px-6 py-12">
-      <div className="flex items-center justify-end mb-6">
+      <div className="flex items-center justify-end gap-6 mb-6">
+        <BudgetIndicator />
         <Link
           href="/settings"
           className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
