@@ -134,6 +134,7 @@ const zh = {
   'settings.section.theme': '外观主题',
   'settings.section.font': '阅读偏好',
   'settings.section.language': '语言',
+  'settings.section.storage': '存储状态',
 
   'settings.language.title': '语言',
   'settings.language.description':
@@ -271,6 +272,7 @@ const en: Dict = {
   'settings.section.theme': 'Theme',
   'settings.section.font': 'Reading',
   'settings.section.language': 'Language',
+  'settings.section.storage': 'Storage',
 
   'settings.language.title': 'Language',
   'settings.language.description':

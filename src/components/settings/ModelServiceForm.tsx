@@ -218,12 +218,18 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center"
-      onClick={onClose}
+      // Only close on direct click on the backdrop itself (not bubbled from
+      // children). Using mousedown + target check survives Safari's quirk
+      // where text selection inside the panel can fire a click on the parent.
+      onMouseDown={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="dialog"
       aria-modal="true"
     >
       <GlassPanel
         className="w-[600px] p-6 max-h-[90vh] overflow-y-auto"
+        onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-5">
@@ -236,12 +242,14 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
         </div>
 
         <div className="space-y-4">
-          <Field label="名称" value={name} onChange={setName} />
+          <Field label="名称" value={name} onChange={setName} autoComplete="off" />
           <Field
             label="Base URL"
             value={baseUrl}
             onChange={setBaseUrl}
             hint="如 https://api.openai.com/v1，末尾无斜杠"
+            inputMode="url"
+            autoComplete="url"
           />
 
           <div>
@@ -442,12 +450,16 @@ function Field({
   onChange,
   type = 'text',
   hint,
+  inputMode,
+  autoComplete,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   hint?: string;
+  inputMode?: 'text' | 'url' | 'email' | 'numeric';
+  autoComplete?: string;
 }) {
   return (
     <div>
@@ -456,6 +468,19 @@ function Field({
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        // Stop the parent dialog's mousedown/click from stealing focus or
+        // closing the dialog when the user clicks inside the input. This
+        // also keeps Safari's clipboard handler attached to the input.
+        onMouseDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+        onPaste={e => e.stopPropagation()}
+        onCopy={e => e.stopPropagation()}
+        onCut={e => e.stopPropagation()}
         className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-foreground"
       />
       {hint && <div className="text-xs text-subtle mt-1">{hint}</div>}

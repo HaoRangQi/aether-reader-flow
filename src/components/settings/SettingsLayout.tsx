@@ -10,11 +10,10 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { ArrowLeft } from 'lucide-react';
 import { useT } from '@/components/shared/I18nProvider';
 import type { TKey } from '@/lib/i18n';
 
-export type SectionId = 'models' | 'routing' | 'budget' | 'theme' | 'font' | 'language';
+export type SectionId = 'models' | 'routing' | 'budget' | 'theme' | 'font' | 'language' | 'storage';
 
 const SECTIONS: { id: SectionId; labelKey: TKey }[] = [
   { id: 'models', labelKey: 'settings.section.models' },
@@ -23,6 +22,7 @@ const SECTIONS: { id: SectionId; labelKey: TKey }[] = [
   { id: 'theme', labelKey: 'settings.section.theme' },
   { id: 'font', labelKey: 'settings.section.font' },
   { id: 'language', labelKey: 'settings.section.language' },
+  { id: 'storage', labelKey: 'settings.section.storage' },
 ];
 
 export interface SettingsLayoutProps {
@@ -40,7 +40,20 @@ export function SettingsLayout({ sections }: SettingsLayoutProps) {
           href="/"
           className="flex items-center gap-1 text-sm text-muted hover:text-foreground mb-4"
         >
-          <ArrowLeft size={14} /> {t('library.back')}
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m12 19-7-7 7-7" />
+            <path d="M19 12H5" />
+          </svg>
+          {t('library.back')}
         </Link>
         <h2 className="font-serif text-lg mb-4">{t('settings.title')}</h2>
         <nav className="space-y-1" aria-label={t('settings.title')}>
