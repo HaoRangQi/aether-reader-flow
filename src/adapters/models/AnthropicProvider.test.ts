@@ -80,13 +80,16 @@ describe('AnthropicProvider', () => {
     // Replace stream() with one that throws.
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const failing = new Anthropic({ apiKey: 'x', baseURL: 'x' });
-    failing.messages.stream = vi.fn(() => {
-      return {
-        async *[Symbol.asyncIterator]() {
-          throw new Error('boom');
-        },
-      };
-    });
+    // The fake SDK's stream() signature only needs to be async-iterable;
+    // we don't model the full MessageStream type here.
+    (failing.messages as unknown as { stream: () => AsyncIterable<unknown> }).stream =
+      vi.fn(() => {
+        return {
+          async *[Symbol.asyncIterator]() {
+            throw new Error('boom');
+          },
+        };
+      });
     // Swap the client into a fresh provider.
     const p2 = new AnthropicProvider({ id: 's1', apiKey: 'sk-test' });
     // @ts-expect-error: replace private client for test
