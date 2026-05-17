@@ -15,7 +15,7 @@ async function buildSampleEpub(overrides: {
   author?: string;
   chapters?: Array<{ title: string; body: string }>;
 } = {}): Promise<Blob> {
-  const title = overrides.title ?? '钱从哪里来';
+  const title = overrides.title ?? '示例书名';
   const author = overrides.author ?? '某';
   const chapters = overrides.chapters ?? [
     { title: '第一章 引子', body: '<p>这是第一章的内容。</p>' },
@@ -85,7 +85,7 @@ describe('EpubParser', () => {
     const parser = new EpubParser();
     const result = await parser.parse(blob);
 
-    expect(result.metadata.title).toBe('钱从哪里来');
+    expect(result.metadata.title).toBe('示例书名');
     expect(result.metadata.author).toBe('某');
     expect(result.totalPages).toBe(2);
     expect(result.pageTexts[0]).toContain('第一章的内容');

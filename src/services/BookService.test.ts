@@ -20,7 +20,7 @@ const mkResult = (overrides: Partial<ParsedDocument> = {}): ParsedDocument => ({
     { title: 'A', pageNumber: 1 },
     { title: 'B', pageNumber: 3 },
   ],
-  metadata: { title: '钱从哪里来', author: '某' },
+  metadata: { title: '示例书名', author: '某' },
   ...overrides,
 });
 
@@ -41,9 +41,9 @@ describe('BookService.upload', () => {
   it('creates book + chapters when PDF has outline', async () => {
     const svc = svcWith(new StubParser(mkResult()));
     const blob = new Blob(['x'], { type: 'application/pdf' });
-    const book = await svc.upload(blob, 'money.pdf');
+    const book = await svc.upload(blob, 'sample.pdf');
 
-    expect(book.title).toBe('钱从哪里来');
+    expect(book.title).toBe('示例书名');
     expect(book.author).toBe('某');
     expect(book.totalChapters).toBe(2);
     expect(book.totalPages).toBe(4);
@@ -75,15 +75,15 @@ describe('BookService.upload', () => {
   it('accepts EPUB by MIME', async () => {
     const svc = svcWith(new StubParser(mkResult()));
     const blob = new Blob(['x'], { type: 'application/epub+zip' });
-    const book = await svc.upload(blob, 'money.epub');
-    expect(book.title).toBe('钱从哪里来');
+    const book = await svc.upload(blob, 'sample.epub');
+    expect(book.title).toBe('示例书名');
   });
 
   it('accepts EPUB by extension when MIME missing', async () => {
     const svc = svcWith(new StubParser(mkResult()));
     const blob = new Blob(['x']); // empty type
-    const book = await svc.upload(blob, 'money.epub');
-    expect(book.title).toBe('钱从哪里来');
+    const book = await svc.upload(blob, 'sample.epub');
+    expect(book.title).toBe('示例书名');
   });
 
   it('rejects unsupported formats', async () => {

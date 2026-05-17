@@ -12,15 +12,15 @@ describe('IndexedDBBookRepo', () => {
 
   it('creates a book with auto-generated id and timestamp', async () => {
     const b = await repo.create({
-      title: 'The Origin of Money',
-      fileName: 'money.pdf',
+      title: 'Sample Book',
+      fileName: 'sample.pdf',
       totalPages: 200,
       totalChapters: 12,
       language: 'zh',
     });
     expect(b.id).toMatch(/^book-/);
     expect(b.uploadedAt).toBeInstanceOf(Date);
-    expect(b.title).toBe('The Origin of Money');
+    expect(b.title).toBe('Sample Book');
   });
 
   it('respects a caller-supplied id', async () => {

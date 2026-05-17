@@ -38,9 +38,9 @@ describe('ExportService.toMarkdown', () => {
 
   it('renders book → chapters → entries hierarchy', async () => {
     const book = await books.create({
-      title: '钱从哪里来',
+      title: '示例书名',
       author: '某',
-      fileName: 'm.pdf',
+      fileName: 'sample.pdf',
       totalPages: 10,
       totalChapters: 1,
       language: 'zh',
@@ -60,7 +60,7 @@ describe('ExportService.toMarkdown', () => {
     await timeline.create(mkEntry({ bookId: book.id, chapterId: 'c1' }));
 
     const md = await svc.toMarkdown(book.id);
-    expect(md).toContain('# 钱从哪里来');
+    expect(md).toContain('# 示例书名');
     expect(md).toContain('## 1. 第一章');
     expect(md).toContain('### [解释]');
     expect(md).toContain('> M2');

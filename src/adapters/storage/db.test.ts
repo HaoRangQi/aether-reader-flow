@@ -25,15 +25,15 @@ describe('Dexie schema', () => {
     const db = getDb();
     await db.books.put({
       id: 'b1',
-      title: '钱从哪里来',
-      fileName: 'money.pdf',
+      title: '示例书名',
+      fileName: 'sample.pdf',
       totalPages: 10,
       totalChapters: 2,
       uploadedAt: new Date(),
       language: 'zh',
     });
     const book = await db.books.get('b1');
-    expect(book?.title).toBe('钱从哪里来');
+    expect(book?.title).toBe('示例书名');
   });
 
   it('uses the [bookId+orderIndex] compound index for chapters', async () => {

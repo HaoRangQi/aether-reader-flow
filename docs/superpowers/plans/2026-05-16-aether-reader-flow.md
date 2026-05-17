@@ -719,8 +719,8 @@ describe('IndexedDBBookRepo', () => {
 
   it('creates a book and assigns id + timestamp', async () => {
     const b = await repo.create({
-      title: 'The Origin of Money',
-      fileName: 'money.pdf',
+      title: 'Sample Book',
+      fileName: 'sample.pdf',
       totalPages: 200,
       totalChapters: 12,
       language: 'zh',
@@ -1268,12 +1268,12 @@ describe('BookService.upload', () => {
       totalPages: 4,
       pageTexts: ['一', '二', '三', '四'],
       outline: [{ title: 'A', pageNumber: 1 }, { title: 'B', pageNumber: 3 }],
-      metadata: { title: '钱从哪里来', author: '张三' },
+      metadata: { title: '示例书名', author: '张三' },
     });
     const svc = new BookService(parser, new IndexedDBBookRepo(), new IndexedDBChapterRepo());
     const blob = new Blob(['x'], { type: 'application/pdf' });
-    const book = await svc.upload(blob, 'money.pdf');
-    expect(book.title).toBe('钱从哪里来');
+    const book = await svc.upload(blob, 'sample.pdf');
+    expect(book.title).toBe('示例书名');
     expect(book.totalChapters).toBe(2);
     const chapters = await new IndexedDBChapterRepo().listByBook(book.id);
     expect(chapters.map(c => c.title)).toEqual(['A', 'B']);
@@ -5106,7 +5106,7 @@ import { ExportService } from './ExportService';
 import type { Book, Chapter, TimelineEntry } from '@/types/domain';
 
 const book: Book = {
-  id: 'b1', title: '钱从哪里来', author: '张三', fileName: 'm.pdf',
+  id: 'b1', title: '示例书名', author: '张三', fileName: 'sample.pdf',
   totalPages: 100, totalChapters: 2, uploadedAt: new Date('2026-05-01'), language: 'zh',
 };
 const chapters: Chapter[] = [
@@ -5125,7 +5125,7 @@ const entries: TimelineEntry[] = [
 describe('ExportService.toMarkdown', () => {
   it('renders book title, chapter sections, entry blocks', () => {
     const md = new ExportService().toMarkdown(book, chapters, entries);
-    expect(md).toContain('# 钱从哪里来');
+    expect(md).toContain('# 示例书名');
     expect(md).toContain('张三');
     expect(md).toContain('## 第一章');
     expect(md).toContain('### [解释]');
@@ -5239,7 +5239,7 @@ describe('ExportService.toHTML', () => {
     const html = new ExportService().toHTML(book, chapters, entries);
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true);
     expect(html).toContain('<style>');
-    expect(html).toContain('钱从哪里来');
+    expect(html).toContain('示例书名');
     expect(html).toContain('M2 是广义货币供应量');
   });
   it('escapes html-unsafe characters in user content', () => {
@@ -6430,7 +6430,7 @@ export function FontPreferences() {
           lineHeight: lineHeight,
         }}>
           流动性传导到资产价格是宏观经济学中的一个经典论点。<br />
-          The Intelligent Investor remains a touchstone for value-investing thought.
+          Value-investing thought has long emphasized margin of safety.
         </div>
       </div>
     </div>
