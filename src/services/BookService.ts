@@ -1,13 +1,15 @@
 /**
  * @fileoverview BookService — orchestrates upload + parse + chapter split.
  *
- * This is the only place that ties together:
- *   - DocumentParser (which produces raw text + outline)
- *   - chapter-detect (which produces chapter records)
- *   - BookRepo / ChapterRepo (which persist)
+ * The service holds a registry of `DocumentParser`s keyed by file extension
+ * and/or MIME prefix. On upload it picks the right parser, then:
+ *   - parse() → ParsedDocument
+ *   - detectChapters() → Chapter[]
+ *   - persist book + chapters
  *
- * Constructor takes injected adapters so tests can substitute fakes. Real
- * callers (the UploadDialog UI) build a service with `IndexedDB*` + `PdfParser`.
+ * Adding a new format (TXT, web URL, …) means writing one new `DocumentParser`
+ * impl and registering it in the parser map at construction. No business
+ * code changes.
  */
 import type { DocumentParser } from '@/adapters/parsers/types';
 import type { BookRepo, ChapterRepo } from '@/adapters/storage/interfaces';
@@ -18,9 +20,18 @@ import { detectChapters } from '@/lib/chapter-detect';
 const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 
 /**
+ * Supported input formats. Keep this list and `pickParser()` in sync.
+ */
+export type SupportedFormat = 'pdf' | 'epub';
+
+export interface ParserRegistry {
+  pdf?: DocumentParser;
+  epub?: DocumentParser;
+}
+
+/**
  * Rough language detection from the first few pages. Conservative: when
- * both scripts are well-represented we return `'mixed'`, which causes
- * prompts to instruct the AI to auto-detect.
+ * both scripts are well-represented we return `'mixed'`.
  */
 function detectLanguage(samples: string[]): Language {
   const sample = samples.slice(0, 5).join('').slice(0, 2000);
@@ -35,36 +46,49 @@ function stripExt(name: string): string {
   return name.replace(/\.[^/.]+$/, '');
 }
 
+/**
+ * Detect format from file metadata. MIME type wins when present, falls back
+ * to filename extension. Returns `null` if we don't recognize it.
+ */
+export function detectFormat(file: Blob, fileName: string): SupportedFormat | null {
+  const mime = (file.type || '').toLowerCase();
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('epub')) return 'epub';
+  const ext = fileName.toLowerCase().match(/\.([^.]+)$/)?.[1] ?? '';
+  if (ext === 'pdf') return 'pdf';
+  if (ext === 'epub') return 'epub';
+  return null;
+}
+
 export class BookService {
   constructor(
-    private parser: DocumentParser,
+    private parsers: ParserRegistry,
     private books: BookRepo,
     private chapters: ChapterRepo,
   ) {}
 
   /**
-   * Upload a PDF blob. Steps:
-   *   1. Validate file type and size
-   *   2. Parse with the injected `DocumentParser`
-   *   3. Detect chapters (outline-aware with single-chapter fallback)
-   *   4. Persist Book + Chapters in two writes (no transaction across
-   *      stores — Dexie multi-table transactions are heavier than warranted)
-   *
-   * The original PDF Blob is stored on the Book record so that:
-   *   - Future re-renders can read it
-   *   - HTML/PDF exports in P3+ can embed source pages if needed
+   * Upload a book blob. Picks the right parser based on the file's MIME
+   * type / extension, parses, splits chapters, and persists.
    */
   async upload(file: Blob, fileName: string): Promise<Book> {
-    if (file.type && !file.type.includes('pdf')) {
-      throw new Error('Only PDF files are supported in MVP.');
+    const format = detectFormat(file, fileName);
+    if (!format) {
+      throw new Error(
+        '只支持 PDF 与 EPUB 文件。请检查文件后缀或导出格式。',
+      );
+    }
+    const parser = this.parsers[format];
+    if (!parser) {
+      throw new Error(`未注册 ${format.toUpperCase()} 解析器（程序错误）。`);
     }
     if (file.size > MAX_BYTES) {
       throw new Error(
-        `File exceeds ${MAX_BYTES / 1024 / 1024} MB limit (got ${(file.size / 1024 / 1024).toFixed(1)} MB).`,
+        `文件超出 ${MAX_BYTES / 1024 / 1024} MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)} MB）。`,
       );
     }
 
-    const parsed = await this.parser.parse(file);
+    const parsed = await parser.parse(file);
     // Assign the book id up front so chapter foreign keys can use it.
     const bookId = `book-${crypto.randomUUID()}`;
     const detected = detectChapters(parsed, bookId);

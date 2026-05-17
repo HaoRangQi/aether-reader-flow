@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { BookService } from '@/services/BookService';
+import { BookService, detectFormat } from '@/services/BookService';
 import { PdfParser } from '@/adapters/parsers/PdfParser';
+import { EpubParser } from '@/adapters/parsers/EpubParser';
 import { IndexedDBBookRepo } from '@/adapters/storage/IndexedDBBookRepo';
 import { IndexedDBChapterRepo } from '@/adapters/storage/IndexedDBChapterRepo';
 
@@ -13,13 +14,9 @@ interface Props {
 }
 
 /**
- * Modal dialog for uploading a PDF. The actual work runs client-side in
- * `BookService.upload`. We show coarse-grained progress messages because
- * PDF.js doesn't surface progress events without extra wiring.
- *
- * Why no spinner library? Native `<progress>` would be fine for indeterminate
- * states, but most browsers' default styling is jarring. P5 will replace
- * the textual progress with a proper Skeleton component.
+ * Modal dialog for uploading a book. Accepts PDF or EPUB. Parsing runs
+ * client-side via `BookService.upload`, which routes to the right parser
+ * based on MIME type / extension.
  */
 export function UploadDialog({ open, onClose, onUploaded }: Props) {
   const [busy, setBusy] = useState(false);
@@ -31,10 +28,11 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
   const handleFile = async (file: File) => {
     setBusy(true);
     setError(null);
-    setProgress('正在解析 PDF…');
+    const fmt = detectFormat(file, file.name);
+    setProgress(fmt ? `正在解析 ${fmt.toUpperCase()}…` : '正在解析…');
     try {
       const svc = new BookService(
-        new PdfParser(),
+        { pdf: new PdfParser(), epub: new EpubParser() },
         new IndexedDBBookRepo(),
         new IndexedDBChapterRepo(),
       );
@@ -63,12 +61,15 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
         className="bg-surface rounded-2xl p-8 w-[480px] shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <div id="upload-dialog-title" className="text-xl font-serif mb-4">
-          上传 PDF
+        <div id="upload-dialog-title" className="text-xl font-serif mb-2">
+          上传书籍
+        </div>
+        <div className="text-sm text-muted mb-4">
+          支持 <strong>PDF</strong> 与 <strong>EPUB</strong>。EPUB 章节结构基于 spine 自动识别，效果通常优于 PDF。
         </div>
         <input
           type="file"
-          accept="application/pdf"
+          accept=".pdf,.epub,application/pdf,application/epub+zip"
           disabled={busy}
           onChange={e => {
             const f = e.target.files?.[0];

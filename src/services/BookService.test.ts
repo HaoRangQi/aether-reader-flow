@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BookService } from './BookService';
+import { BookService, detectFormat } from './BookService';
 import { resetDb } from '@/adapters/storage/db';
 import { IndexedDBBookRepo } from '@/adapters/storage/IndexedDBBookRepo';
 import { IndexedDBChapterRepo } from '@/adapters/storage/IndexedDBChapterRepo';
@@ -24,17 +24,22 @@ const mkResult = (overrides: Partial<ParsedDocument> = {}): ParsedDocument => ({
   ...overrides,
 });
 
+/** Build a BookService with the same stub parser registered for both formats. */
+function svcWith(parser: DocumentParser) {
+  return new BookService(
+    { pdf: parser, epub: parser },
+    new IndexedDBBookRepo(),
+    new IndexedDBChapterRepo(),
+  );
+}
+
 describe('BookService.upload', () => {
   beforeEach(async () => {
     await resetDb();
   });
 
   it('creates book + chapters when PDF has outline', async () => {
-    const svc = new BookService(
-      new StubParser(mkResult()),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
-    );
+    const svc = svcWith(new StubParser(mkResult()));
     const blob = new Blob(['x'], { type: 'application/pdf' });
     const book = await svc.upload(blob, 'money.pdf');
 
@@ -48,68 +53,96 @@ describe('BookService.upload', () => {
   });
 
   it('uses filename (without extension) when metadata title missing', async () => {
-    const svc = new BookService(
-      new StubParser(mkResult({ metadata: {} })),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
+    const svc = svcWith(new StubParser(mkResult({ metadata: {} })));
+    const book = await svc.upload(
+      new Blob(['x'], { type: 'application/pdf' }),
+      'unknown.pdf',
     );
-    const book = await svc.upload(new Blob(['x'], { type: 'application/pdf' }), 'unknown.pdf');
     expect(book.title).toBe('unknown');
   });
 
   it('falls back to single chapter when no outline', async () => {
-    const svc = new BookService(
-      new StubParser(mkResult({ outline: [] })),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
+    const svc = svcWith(new StubParser(mkResult({ outline: [] })));
+    const book = await svc.upload(
+      new Blob(['x'], { type: 'application/pdf' }),
+      'x.pdf',
     );
-    const book = await svc.upload(new Blob(['x'], { type: 'application/pdf' }), 'x.pdf');
     expect(book.totalChapters).toBe(1);
     const chapters = await new IndexedDBChapterRepo().listByBook(book.id);
     expect(chapters[0].title).toBe('全文');
   });
 
-  it('rejects non-pdf files', async () => {
-    const svc = new BookService(
-      new StubParser(mkResult()),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
-    );
+  it('accepts EPUB by MIME', async () => {
+    const svc = svcWith(new StubParser(mkResult()));
+    const blob = new Blob(['x'], { type: 'application/epub+zip' });
+    const book = await svc.upload(blob, 'money.epub');
+    expect(book.title).toBe('钱从哪里来');
+  });
+
+  it('accepts EPUB by extension when MIME missing', async () => {
+    const svc = svcWith(new StubParser(mkResult()));
+    const blob = new Blob(['x']); // empty type
+    const book = await svc.upload(blob, 'money.epub');
+    expect(book.title).toBe('钱从哪里来');
+  });
+
+  it('rejects unsupported formats', async () => {
+    const svc = svcWith(new StubParser(mkResult()));
     await expect(
       svc.upload(new Blob(['x'], { type: 'text/plain' }), 'a.txt'),
-    ).rejects.toThrow(/only PDF/i);
+    ).rejects.toThrow(/PDF.*EPUB|EPUB.*PDF/i);
   });
 
   it('detects Chinese language from CJK-heavy content', async () => {
-    const svc = new BookService(
+    const svc = svcWith(
       new StubParser(mkResult({ pageTexts: ['这是中文金融书的内容'.repeat(10)] })),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
     );
-    const book = await svc.upload(new Blob(['x'], { type: 'application/pdf' }), 'cn.pdf');
+    const book = await svc.upload(
+      new Blob(['x'], { type: 'application/pdf' }),
+      'cn.pdf',
+    );
     expect(book.language).toBe('zh');
   });
 
   it('detects English language from Latin-heavy content', async () => {
-    const svc = new BookService(
+    const svc = svcWith(
       new StubParser(
-        mkResult({ pageTexts: ['Lorem ipsum dolor sit amet consectetur adipiscing elit'.repeat(5)] }),
+        mkResult({
+          pageTexts: [
+            'Lorem ipsum dolor sit amet consectetur adipiscing elit'.repeat(5),
+          ],
+        }),
       ),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
     );
-    const book = await svc.upload(new Blob(['x'], { type: 'application/pdf' }), 'en.pdf');
+    const book = await svc.upload(
+      new Blob(['x'], { type: 'application/pdf' }),
+      'en.pdf',
+    );
     expect(book.language).toBe('en');
   });
 
   it('stores the original Blob on the book record', async () => {
-    const svc = new BookService(
-      new StubParser(mkResult()),
-      new IndexedDBBookRepo(),
-      new IndexedDBChapterRepo(),
-    );
+    const svc = svcWith(new StubParser(mkResult()));
     const blob = new Blob(['pdf-bytes'], { type: 'application/pdf' });
     const book = await svc.upload(blob, 'x.pdf');
     expect(book.fileBlob).toBeInstanceOf(Blob);
+  });
+});
+
+describe('detectFormat', () => {
+  it('recognizes pdf by mime', () => {
+    expect(detectFormat(new Blob([], { type: 'application/pdf' }), 'x')).toBe('pdf');
+  });
+  it('recognizes epub by mime', () => {
+    expect(detectFormat(new Blob([], { type: 'application/epub+zip' }), 'x')).toBe('epub');
+  });
+  it('recognizes pdf by extension when mime missing', () => {
+    expect(detectFormat(new Blob([]), 'book.pdf')).toBe('pdf');
+  });
+  it('recognizes epub by extension when mime missing', () => {
+    expect(detectFormat(new Blob([]), 'book.EPUB')).toBe('epub');
+  });
+  it('returns null for unknown formats', () => {
+    expect(detectFormat(new Blob([]), 'thing.txt')).toBeNull();
   });
 });
