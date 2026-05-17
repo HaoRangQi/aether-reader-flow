@@ -35,7 +35,7 @@ export function SettingsLayout({ sections }: SettingsLayoutProps) {
 
   return (
     <div className="flex h-screen">
-      <aside className="w-60 shrink-0 border-r border-divider p-4">
+      <aside className="w-60 shrink-0 border-r border-divider p-4 overflow-y-auto">
         <Link
           href="/"
           className="flex items-center gap-1 text-sm text-muted hover:text-foreground mb-4"
