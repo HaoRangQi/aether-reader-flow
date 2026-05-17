@@ -12,6 +12,7 @@ import { AISidebar } from './AISidebar';
 import { ChapterSummaryPanel } from './ChapterSummaryPanel';
 import { TimelinePanel } from './TimelinePanel';
 import { QuickUnlockDialog } from './QuickUnlockDialog';
+import { KeyboardShortcuts } from '@/components/shared/KeyboardShortcuts';
 import { useTimelineStore } from '@/stores/timelineStore';
 import { getVault } from '@/lib/ai-service-client';
 import { Sparkles, Lock, MessageSquare, ScrollText } from 'lucide-react';
@@ -64,6 +65,7 @@ export function ReaderView({ bookId }: { bookId: string }) {
 
   return (
     <div className="flex h-screen">
+      <KeyboardShortcuts />
       <aside className="w-72 shrink-0 border-r border-divider p-4 overflow-y-auto">
         <Link
           href="/"

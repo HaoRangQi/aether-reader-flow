@@ -153,7 +153,7 @@ export function SelectionPopover() {
   return (
     <div
       ref={popoverRef}
-      className="fixed z-40"
+      className="fixed z-40 arf-anim-popover"
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,

@@ -157,7 +157,7 @@ export function AISidebar() {
   };
 
   return (
-    <aside className="w-[420px] shrink-0 h-screen flex flex-col border-l border-divider">
+    <aside className="w-[420px] shrink-0 h-screen flex flex-col border-l border-divider arf-anim-slide-right">
       <GlassPanel className="flex-1 m-2 flex flex-col rounded-2xl">
         <header className="flex items-start justify-between p-3 border-b border-divider gap-2">
           <div className="flex-1 min-w-0">

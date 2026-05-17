@@ -6,6 +6,7 @@ import { IndexedDBBookRepo } from '@/adapters/storage/IndexedDBBookRepo';
 import { BookCard } from './BookCard';
 import { EmptyLibrary } from './EmptyLibrary';
 import { UploadDialog } from './UploadDialog';
+import { BookCardSkeleton } from '@/components/shared/Skeleton';
 
 /**
  * Library view. Loads books from IndexedDB on mount and after every upload.
@@ -33,9 +34,21 @@ export function BookList() {
     };
   }, []);
 
-  // While books is null (still loading IndexedDB), render nothing to avoid
-  // a flash of the empty state. Skeleton lands in P5.
-  if (books === null) return null;
+  // While books is null (still loading IndexedDB), show skeletons.
+  if (books === null) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="font-serif text-3xl">书架</h1>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <BookCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
