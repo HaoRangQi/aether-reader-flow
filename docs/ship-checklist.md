@@ -1,121 +1,103 @@
-# Ship Checklist — Aether Reader Flow MVP
+# MVP Ship Checklist — Aether Reader Flow v0.1.0
 
-Pre-flight checklist before tagging a release. Tick items in order; do not
-skip the manual end-to-end walkthrough.
+> 上线候选自查清单。每一条都应在第一名真实用户开始使用之前对照确认。
 
-## Build & Quality Gates
+## ⚙ 功能
 
-- [ ] `npm test` — all unit/integration tests pass
-- [ ] `npm run lint -- --max-warnings 0` — zero warnings
-- [ ] `npm run build` — clean production build (no TS errors)
-- [ ] `npm run e2e` — Playwright smoke passes
+- [ ] PDF 上传（≤ 500MB）走 PDF.js 客户端解析；无 outline 的书走「全文」单章兜底
+- [ ] 划词气泡 4 个按钮均可触发：翻译 / 解释 / 验证 / 深入
+- [ ] 翻译 / 解释 / 验证 在气泡内流式渲染
+- [ ] 深入 → AI 侧栏打开，原文片段作为锚点
+- [ ] 章节总结：首次生成后写入 chapter.summaryCache，再次打开即时显示
+- [ ] 章节总结「重新生成」按钮跳过缓存
+- [ ] AI 侧栏多轮对话：Enter 发送 / Shift+Enter 换行 / 自动滚动到底
+- [ ] AI 侧栏顶部 ModelSwitcher 可临时切换模型（仅本次会话，不改全局路由）
+- [ ] 时间轴面板：列表反向时序 / 章节筛选 / 类型 chip 多选 / 搜索原文+AI+用户输入
+- [ ] BookCard 右上角下载图标 → ExportDialog
+- [ ] ExportDialog 可选 Markdown / HTML 与 全部 / 部分章节
+- [ ] Markdown 导出含层级（H1 书 / H2 章 / H3 条目）+ 时间 + 来源
+- [ ] HTML 导出离线可独立打开（含内联 CSS），所有 user/AI 文本经 XSS 转义
+- [ ] 设置页 5 节均可导航
+- [ ] 模型服务：5 个预置 + 自定义 + 列表（编辑 / 删除）+ 测试连接
+- [ ] 任务路由：5 任务 × 所有已启用模型 下拉
+- [ ] 主题选择：6 主题包 × 浅深 + auto
+- [ ] 字体偏好：默认 / 自定义 CSS font-family + 字号 + 行高 + 实时预览
+- [ ] 月度预算配置：达到 80% / 100% 时 Toast 提醒
 
-## Functional Coverage
+## 🎨 视觉
 
-### Library
-- [ ] Empty state renders on a fresh profile
-- [ ] PDF upload accepts a real Chinese finance book (e.g., 钱从哪里来)
-- [ ] Upload rejects non-PDF
-- [ ] Upload rejects file > 500 MB
-- [ ] BookCard click navigates to reader
-- [ ] Download icon opens ExportDialog (does NOT navigate)
+- [ ] 6 主题包 light + dark 共 12 套配色均加载正确
+- [ ] ThemeProvider 切换平滑（< 400ms），不闪烁
+- [ ] 玻璃面板在所有主题下背景可见、blur 生效
+- [ ] 划词气泡 spring 动画进入
+- [ ] AI 侧栏 / 时间轴面板 从右侧滑入
+- [ ] 焦点环（:focus-visible）键盘 Tab 时可见
 
-### Reader
-- [ ] Three columns render (nav / content / right-side panels)
-- [ ] Chapter list shows correct count + titles
-- [ ] Chapter switching is instant (< 300ms)
-- [ ] ChapterContent uses user-selected font / size / line height
-- [ ] Selection in chapter body pops up SelectionPopover at correct location
-- [ ] Selection outside chapter body does NOT pop
+## ⌨ 交互
 
-### Selection Popover
-- [ ] 翻译 streams inline with bilingual output + term annotations
-- [ ] 解释 streams inline with 4 named sections
-- [ ] 验证 shows progress, returns JSON with sources, parsed correctly into TimelineEntry
-- [ ] 深入 opens AISidebar with anchor set to the selection
-- [ ] Error in any of the above renders inline (no app crash)
-- [ ] Close (X) clears the popover
+- [ ] ⌘/Ctrl + B 切换时间轴
+- [ ] ⌘/Ctrl + Shift + S 切换 AI 侧栏
+- [ ] ⌘/Ctrl + D 浅/深模式切换
+- [ ] ← / → 上一章 / 下一章（不在输入框时）
 
-### AISidebar
-- [ ] Empty state on open
-- [ ] First user message → assistant streams → final usage chunk → cost refresh
-- [ ] Multi-turn preserves history
-- [ ] ModelSwitcher lists all enabled models
-- [ ] Changing ModelSwitcher uses new model for the next message (override)
-- [ ] Enter sends, Shift+Enter newlines
-- [ ] Error mid-stream shows in last bubble; subsequent sends work
+## ♿ 可访问性
 
-### ChapterSummaryPanel
-- [ ] First time on chapter → streams summary → parsed into 4 sections
-- [ ] Cached on chapter → next open is instant
-- [ ] "重新生成" forces fresh AI call
+- [ ] prefers-reduced-motion 用户感知不到大幅动画
+- [ ] 所有交互按钮带 aria-label 或可见文本
+- [ ] 所有 dialog 带 role="dialog" aria-modal="true"
+- [ ] 选择主题卡片用 aria-pressed
 
-### TimelinePanel
-- [ ] Lists all entries reverse-chronologically
-- [ ] Chapter filter narrows correctly
-- [ ] Type filter (chips) narrows correctly
-- [ ] Search box matches originalText / userInput / aiResponse
+## 📐 响应式
 
-### Settings
-- [ ] Settings page reachable from home page link
-- [ ] All 5 sections render
-- [ ] Adding a service: name + baseUrl + key + test connection works
-- [ ] Saving without API key on existing service preserves cipher
-- [ ] Deleting a service updates the list
-- [ ] Task routing dropdowns populated from enabled models
-- [ ] Theme picker changes UI immediately on selection
-- [ ] Mode toggle (light/dark/auto) flips colors live
-- [ ] Font preferences live preview reflects choice
-- [ ] Saving font prefs persists across reload
-- [ ] Budget input persists across reload
+- [ ] ≥ 1280px：完整三栏布局
+- [ ] < 1024px：NarrowViewportNotice 顶部条提示
 
-### Cost & Budget
-- [ ] BudgetIndicator on home page shows month/today CNY
-- [ ] Threshold 80% triggers warning toast (do a real call to hit it if not already)
-- [ ] Threshold 100% triggers danger toast
-- [ ] CostBadge per AI exchange in timeline shows model + tokens + USD
+## 🚀 性能
 
-### Export
-- [ ] Markdown export downloads .md with all chapters and entries
-- [ ] HTML export downloads .html; opens offline in browser
-- [ ] HTML escapes special chars (paste `<script>` as a title → confirm rendered text)
-- [ ] Export filter by chapters works
+- [ ] 章节切换 ≤ 300ms
+- [ ] 划词气泡弹出 ≤ 100ms
+- [ ] AI 第一 token ≤ 2s
+- [ ] 章节总结 ≤ 30s（30k token）
 
-## Non-functional
+## 💰 成本
 
-- [ ] No console errors during typical session
-- [ ] No "Please use the legacy build" warnings reach the browser console
-- [ ] All 6 themes render correctly in both light and dark (12 combinations)
-- [ ] Keyboard shortcuts: Cmd+B / Cmd+D / Cmd+Shift+S / arrow keys
-- [ ] Window resized < 1024px shows the narrow-viewport banner
-- [ ] `prefers-reduced-motion` disables popover/sidebar animations
+- [ ] 单本 30 万字金融书端到端实测 ≤ ¥350
+- [ ] translate 任务默认走 Haiku
+- [ ] CostBadge 数字 ±5% 误差内
 
-## Security
+## 🔒 安全
 
-- [ ] API Key never appears in any client-side JS bundle (grep dist for known prefix)
-- [ ] API Key never appears in server logs
-- [ ] Bad master password fails decryption gracefully (no crash)
-- [ ] Locking the vault clears the in-memory cache (next AI call fails with `Vault is locked`)
+- [ ] 客户端 bundle 不含 plaintext API key
+- [ ] 服务端日志不写 API key
+- [ ] CryptoService 错误密码无误差抛出
+- [ ] sessionStorage 不存主密码
 
-## Performance
+## 🧪 测试
 
-- [ ] Chapter switch ≤ 300 ms (visual)
-- [ ] Selection popover ≤ 100 ms (visual)
-- [ ] AI first token ≤ 2 s on typical API latency
-- [ ] Chapter summary completes < 30 s for a 30k-token chapter (with progress UI)
+- [ ] npm test — 136/136 pass
+- [ ] npm run e2e — 至少 1 项 pass
+- [ ] npm run lint --max-warnings 0 — 0 / 0
+- [ ] npm run build — 干净
+- [ ] npx tsc --noEmit — 类型干净
 
-## Cost (real end-to-end)
+## 🏁 真实使用流（最后手动一遍）
 
-- [ ] One real finance book (~30k tokens × 30 chapters), full read + ~100 AI calls
-  → total < ¥350 (target ¥300)
-- [ ] Translate task uses Haiku (cost badge confirms)
-- [ ] Cost badge accurate to ±5% versus actual API receipt
+新 profile 上从零跑一遍：
 
-## Release Mechanics
+1. [ ] 打开首页 → 看到空状态 + 上传按钮
+2. [ ] 进设置 → 配 Anthropic API Key + 主密码
+3. [ ] 设任务路由（用 sonnet + haiku）
+4. [ ] 选羊皮纸主题 → 切深色 → 切莲青 → 确认整套色变
+5. [ ] 上传一本真实中文金融科普 PDF
+6. [ ] 进入第 3 章 → 划词「M2」→ 翻译 → 见结果
+7. [ ] 划词「央行扩表必然推高房地产价格」→ 验证 → 见 sources + 置信度
+8. [ ] 工具栏「章节总结」→ 30s 内看到 4 段结构化总结
+9. [ ] AI 侧栏发起追问「那 2015-2018 是反例吗？」→ 多轮对话
+10. [ ] 顶部 ModelSwitcher → 切到 Haiku → 下次回答用 Haiku
+11. [ ] 时间轴面板 → 筛选「验证」类型 → 搜索关键词
+12. [ ] 回首页 → BookCard 下载 → 导出 MD → 检查格式
+13. [ ] 导出 HTML → 双击离线打开 → 渲染正确
+14. [ ] 设置 → 改自定义字体 → 阅读视图即时更新
+15. [ ] 设置 → 改预算为 ¥1 → AI 调用后看到「超出预算」Toast
 
-- [ ] `docs/superpowers/plans/deviations.md` final review — all open items either
-  resolved or moved to a future-work issue
-- [ ] README "已知限制" section accurate
-- [ ] git status clean (no uncommitted files)
-- [ ] All commits descriptive and Chinese-style per project convention
-- [ ] Tag with `git tag v0.1.0-mvp`
+完成所有项 → 打 tag v0.1.0-mvp，宣布 MVP 完成。
