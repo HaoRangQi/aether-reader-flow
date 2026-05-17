@@ -13,23 +13,52 @@ interface Props {
   onUploaded: () => void;
 }
 
+const MAX_BYTES = 500 * 1024 * 1024;
+
 /**
  * Modal dialog for uploading a book. Accepts PDF or EPUB. Parsing runs
  * client-side via `BookService.upload`, which routes to the right parser
  * based on MIME type / extension.
+ *
+ * UX details:
+ *   - Native <input accept> is a hint, not a hard filter — some browsers
+ *     still let users pick anything. We re-validate format on selection
+ *     and on drop, giving a clear Chinese error before any parsing starts.
+ *   - Drag-and-drop is supported; the drop zone shows a hover state.
  */
 export function UploadDialog({ open, onClose, onUploaded }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
+  const [hover, setHover] = useState(false);
 
   if (!open) return null;
 
-  const handleFile = async (file: File) => {
-    setBusy(true);
-    setError(null);
+  /** Synchronous pre-check before kicking off parsing. */
+  const validate = (file: File): string | null => {
+    if (!file.name && !file.type) return '无法识别这个文件';
+    if (file.size === 0) return '文件是空的';
+    if (file.size > MAX_BYTES) {
+      return `文件超出 ${MAX_BYTES / 1024 / 1024} MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)} MB）`;
+    }
     const fmt = detectFormat(file, file.name);
-    setProgress(fmt ? `正在解析 ${fmt.toUpperCase()}…` : '正在解析…');
+    if (!fmt) {
+      return `暂不支持「${file.name || '该文件'}」。当前仅接受 PDF (.pdf) 与 EPUB (.epub)`;
+    }
+    return null;
+  };
+
+  const handleFile = async (file: File) => {
+    setError(null);
+    setProgress('');
+    const fail = validate(file);
+    if (fail) {
+      setError(fail);
+      return;
+    }
+    setBusy(true);
+    const fmt = detectFormat(file, file.name)!;
+    setProgress(`正在解析 ${fmt.toUpperCase()}…`);
     try {
       const svc = new BookService(
         { pdf: new PdfParser(), epub: new EpubParser() },
@@ -47,6 +76,14 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setHover(false);
+    if (busy) return;
+    const f = e.dataTransfer.files?.[0];
+    if (f) void handleFile(f);
   };
 
   return (
@@ -67,16 +104,38 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
         <div className="text-sm text-muted mb-4">
           支持 <strong>PDF</strong> 与 <strong>EPUB</strong>。EPUB 章节结构基于 spine 自动识别，效果通常优于 PDF。
         </div>
-        <input
-          type="file"
-          accept=".pdf,.epub,application/pdf,application/epub+zip"
-          disabled={busy}
-          onChange={e => {
-            const f = e.target.files?.[0];
-            if (f) void handleFile(f);
+
+        <label
+          onDragOver={e => {
+            e.preventDefault();
+            if (!busy) setHover(true);
           }}
-          className="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-accent file:text-white file:cursor-pointer hover:file:bg-[var(--color-accent-hover)]"
-        />
+          onDragLeave={() => setHover(false)}
+          onDrop={onDrop}
+          className={`block border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition ${
+            hover
+              ? 'border-accent bg-[var(--color-accent)]/5'
+              : 'border-border hover:border-muted'
+          } ${busy ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          <div className="text-sm text-foreground mb-1">
+            点击选择文件，或拖拽到这里
+          </div>
+          <div className="text-xs text-subtle">.pdf · .epub · 最大 500MB</div>
+          <input
+            type="file"
+            accept=".pdf,.epub,application/pdf,application/epub+zip"
+            disabled={busy}
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) void handleFile(f);
+              // 重置 input 让用户能重选同一个文件
+              e.target.value = '';
+            }}
+            className="hidden"
+          />
+        </label>
+
         {progress && (
           <div className="mt-4 text-sm text-info" role="status">
             {progress}
