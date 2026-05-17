@@ -174,3 +174,26 @@ body {
     display: none;
   }
 }
+
+/* ============================================================================
+ * Accessibility (P5 T5.10)
+ *
+ * Visible focus ring on keyboard navigation; subdued on mouse focus
+ * (matches modern Web platform conventions).
+ * ========================================================================== */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Disable transitions for reduced-motion users on common animated props */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

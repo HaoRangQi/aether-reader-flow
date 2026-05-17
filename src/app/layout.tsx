@@ -13,6 +13,7 @@ import "./globals.css";
 import { ConfigHydrator } from "@/components/shared/ConfigHydrator";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
 import { ToastContainer } from "@/components/shared/ToastContainer";
+import { NarrowViewportNotice } from "@/components/shared/NarrowViewportNotice";
 
 export const metadata: Metadata = {
   title: "Aether Reader Flow",
@@ -28,7 +29,10 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
       <body className="min-h-full flex flex-col">
         <ConfigHydrator />
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <NarrowViewportNotice />
+          {children}
+        </ThemeProvider>
         <ToastContainer />
       </body>
     </html>
