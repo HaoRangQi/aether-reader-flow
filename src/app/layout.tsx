@@ -10,6 +10,7 @@
  */
 import type { Metadata } from "next";
 import "./globals.css";
+import { ConfigHydrator } from "@/components/shared/ConfigHydrator";
 
 export const metadata: Metadata = {
   title: "Aether Reader Flow",
@@ -23,7 +24,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning className="h-full">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ConfigHydrator />
+        {children}
+      </body>
     </html>
   );
 }
