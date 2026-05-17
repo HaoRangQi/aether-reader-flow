@@ -18,6 +18,7 @@ import type {
   ChatRequest,
   ModelProvider,
 } from './types';
+import type { ModelInfo } from '@/types/domain';
 import type { ChatChunk } from '@/types/api';
 
 export interface AnthropicProviderOptions {
@@ -102,6 +103,55 @@ export class AnthropicProvider implements ModelProvider {
       return false;
     }
   }
+
+  /**
+   * Fetch the list of models the user's API key has access to via
+   * Anthropic's `GET /v1/models` endpoint (added 2024). Pricing /
+   * context-window data is filled from our static table; the API only
+   * returns id + name + type.
+   */
+  async listModels(): Promise<ModelInfo[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: {
+          'x-api-key': (this.client as unknown as { apiKey: string }).apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+      });
+      if (!res.ok) return [];
+      const json = (await res.json()) as {
+        data?: Array<{ id: string; display_name?: string }>;
+      };
+      return (json.data ?? []).map(m => ({
+        id: m.id,
+        name: m.display_name ?? m.id,
+        contextWindow: m.id.includes('opus')
+          ? 200_000
+          : m.id.includes('haiku')
+            ? 200_000
+            : 200_000,
+        // All Claude models support tool_use and thus web_search via tool.
+        supportsWebSearch: true,
+        pricing: pricingFor(m.id),
+      }));
+    } catch {
+      return [];
+    }
+  }
+}
+
+/** Pull pricing from the built-in table; falls back to safe defaults. */
+function pricingFor(modelId: string): { input: number; output: number } {
+  // The `pricing` table import would create a circular dep at module load
+  // because pricing.ts has no deps; we do a dynamic require-style lookup
+  // through a static map kept here instead. Keep this map in sync with
+  // `src/lib/pricing.ts` (it's tiny).
+  const KNOWN: Record<string, { input: number; output: number }> = {
+    'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
+    'claude-haiku-4-5': { input: 0.8, output: 4.0 },
+    'claude-opus-4-7': { input: 15.0, output: 75.0 },
+  };
+  return KNOWN[modelId.toLowerCase()] ?? { input: 1.0, output: 5.0 };
 }
 
 /** Splits leading system message(s) out of a flat ChatMessage[] array. */

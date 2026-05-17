@@ -19,6 +19,7 @@ import type {
   ModelProvider,
 } from './types';
 import type { ChatChunk } from '@/types/api';
+import type { ModelInfo } from '@/types/domain';
 
 export interface OpenAICompatOptions {
   id: string;
@@ -132,6 +133,38 @@ export class OpenAICompatibleProvider implements ModelProvider {
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Fetch the model catalog via `GET /v1/models`. The OpenAI-style response
+   * is `{ data: [{ id, object, owned_by, ... }] }`. Vendors disagree on
+   * extra fields; we extract just `id` and synthesize the rest.
+   *
+   * Falls back to an empty array on any error — caller should handle by
+   * letting the user input model ids manually.
+   */
+  async listModels(): Promise<ModelInfo[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
+      if (!res.ok) return [];
+      const json = (await res.json()) as { data?: Array<{ id: string }> };
+      return (json.data ?? [])
+        .filter(m => typeof m.id === 'string')
+        .map(m => ({
+          id: m.id,
+          name: m.id,
+          // Unknown — caller should treat 0 as "use model default".
+          contextWindow: 0,
+          // Conservative: assume web search is NOT supported on
+          // OpenAI-compat endpoints; verify task should skip these.
+          supportsWebSearch: false,
+          pricing: { input: 0, output: 0 },
+        }));
+    } catch {
+      return [];
     }
   }
 }
