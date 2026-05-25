@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { translate, detectBrowserLocale, SUPPORTED_LOCALES } from './i18n';
+
+const originalLanguages = navigator.languages;
+const originalLanguage = navigator.language;
+
+afterEach(() => {
+  Object.defineProperty(navigator, 'languages', {
+    configurable: true,
+    value: originalLanguages,
+  });
+  Object.defineProperty(navigator, 'language', {
+    configurable: true,
+    value: originalLanguage,
+  });
+});
 
 describe('i18n', () => {
   it('translates a key in zh', () => {
@@ -30,6 +44,13 @@ describe('i18n', () => {
     expect(translate('xx', 'library.title')).toBe('书架');
   });
 
+  it('normalizes runtime language tags before translating', () => {
+    // @ts-expect-error: browser language tag on purpose
+    expect(translate('en-US', 'library.title')).toBe('Library');
+    // @ts-expect-error: whitespace-padded language tag on purpose
+    expect(translate(' zh-CN ', 'library.title')).toBe('书架');
+  });
+
   it('every key in zh has an en translation', () => {
     // We can't directly enumerate Dict from outside, but spot-check
     // a representative sample.
@@ -53,5 +74,44 @@ describe('i18n', () => {
     // happy-dom provides navigator; this test mostly asserts no crash.
     const result = detectBrowserLocale();
     expect(['zh', 'en']).toContain(result);
+  });
+
+  it('detectBrowserLocale checks the full browser language preference list', () => {
+    Object.defineProperty(navigator, 'languages', {
+      configurable: true,
+      value: ['fr-FR', 'zh-Hans-CN', 'en-US'],
+    });
+    Object.defineProperty(navigator, 'language', {
+      configurable: true,
+      value: 'fr-FR',
+    });
+
+    expect(detectBrowserLocale()).toBe('zh');
+  });
+
+  it('detectBrowserLocale falls back to navigator.language when languages is empty', () => {
+    Object.defineProperty(navigator, 'languages', {
+      configurable: true,
+      value: [],
+    });
+    Object.defineProperty(navigator, 'language', {
+      configurable: true,
+      value: 'en-GB',
+    });
+
+    expect(detectBrowserLocale()).toBe('en');
+  });
+
+  it('detectBrowserLocale skips malformed browser language tags', () => {
+    Object.defineProperty(navigator, 'languages', {
+      configurable: true,
+      value: [null, '   ', 'fr-FR', 'en_US'],
+    });
+    Object.defineProperty(navigator, 'language', {
+      configurable: true,
+      value: 'zh-CN',
+    });
+
+    expect(detectBrowserLocale()).toBe('en');
   });
 });

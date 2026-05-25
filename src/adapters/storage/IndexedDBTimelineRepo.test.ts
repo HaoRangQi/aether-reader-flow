@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resetDb } from './db';
+import { getDb, resetDb } from './db';
 import { IndexedDBTimelineRepo } from './IndexedDBTimelineRepo';
 import type { TimelineEntry, TaskType } from '@/types/domain';
 
@@ -33,18 +33,29 @@ describe('IndexedDBTimelineRepo', () => {
   });
 
   it('listByBook returns only entries for that book', async () => {
-    await repo.create(mk({ id: 't1', bookId: 'b1' }));
-    await repo.create(mk({ id: 't2', bookId: 'b1' }));
-    await repo.create(mk({ id: 't3', bookId: 'b2' }));
-    expect((await repo.listByBook('b1')).length).toBe(2);
-    expect((await repo.listByBook('b2')).length).toBe(1);
+    await repo.create(mk({ id: 't1', bookId: 'b1', timestamp: new Date('2026-01-01T00:00:00Z') }));
+    await repo.create(mk({ id: 't2', bookId: 'b1', timestamp: new Date('2026-01-03T00:00:00Z') }));
+    await repo.create(mk({ id: 't3', bookId: 'b2', timestamp: new Date('2026-01-02T00:00:00Z') }));
+    expect((await repo.listByBook('b1')).map(entry => entry.id)).toEqual(['t2', 't1']);
+    expect((await repo.listByBook('b2')).map(entry => entry.id)).toEqual(['t3']);
   });
 
-  it('listByBook respects limit', async () => {
+  it('listByBook limit returns the most recent entries', async () => {
     for (let i = 0; i < 5; i++) {
-      await repo.create(mk({ id: `t${i}` }));
+      await repo.create(mk({
+        id: `t${i}`,
+        timestamp: new Date(`2026-01-0${i + 1}T00:00:00Z`),
+      }));
     }
-    expect((await repo.listByBook('b1', 2)).length).toBe(2);
+    expect((await repo.listByBook('b1', 2)).map(entry => entry.id)).toEqual(['t4', 't3']);
+  });
+
+  it('normalizes invalid listByBook limits', async () => {
+    await repo.create(mk({ id: 't1' }));
+
+    await expect(repo.listByBook('b1', 0)).resolves.toEqual([]);
+    await expect(repo.listByBook('b1', -1)).resolves.toEqual([]);
+    await expect(repo.listByBook('b1', Number.POSITIVE_INFINITY)).resolves.toEqual([]);
   });
 
   it('listByChapter filters by chapter', async () => {
@@ -64,6 +75,27 @@ describe('IndexedDBTimelineRepo', () => {
     await repo.create(mk({ id: 't2', userInput: '这里指什么?' }));
     expect((await repo.search('b1', '货币')).map(e => e.id)).toEqual(['t1']);
     expect((await repo.search('b1', '什么')).map(e => e.id)).toEqual(['t2']);
+  });
+
+  it('treats blank search as an unsearched book timeline', async () => {
+    await repo.create(mk({ id: 'old', timestamp: new Date('2026-01-01T00:00:00Z') }));
+    await repo.create(mk({ id: 'new', timestamp: new Date('2026-01-02T00:00:00Z') }));
+
+    expect((await repo.search('b1', '   ')).map(e => e.id)).toEqual(['new', 'old']);
+  });
+
+  it('ignores malformed historical text fields while searching', async () => {
+    await getDb().timeline.bulkPut([
+      {
+        ...mk({ id: 'dirty' }),
+        originalText: null,
+        aiResponse: { text: 'bad' },
+        userInput: 42,
+      } as unknown as TimelineEntry,
+      mk({ id: 'match', originalText: 'M2 growth' }),
+    ]);
+
+    expect((await repo.search('b1', 'm2')).map(e => e.id)).toEqual(['match']);
   });
 
   it('deletes a timeline entry', async () => {

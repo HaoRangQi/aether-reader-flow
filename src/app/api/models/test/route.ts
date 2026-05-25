@@ -10,6 +10,7 @@
  * For OpenAI-compatible we just GET /models — cheaper than a chat completion.
  */
 import { NextResponse } from 'next/server';
+import { providerErrorMessage, upstreamErrorMessage } from '../_lib/provider-errors';
 
 interface Body {
   protocol: 'anthropic' | 'openai';
@@ -17,17 +18,36 @@ interface Body {
   apiKey: string;
 }
 
+function nonBlankString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isProviderProtocol(value: unknown): value is Body['protocol'] {
+  return value === 'anthropic' || value === 'openai';
+}
+
 export async function POST(req: Request) {
-  let body: Body;
+  let body: unknown;
   try {
-    body = (await req.json()) as Body;
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const { protocol, baseUrl, apiKey } = body;
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+  const rawBody = body as Record<string, unknown>;
+  const baseUrl = nonBlankString(rawBody.baseUrl);
+  const apiKey = nonBlankString(rawBody.apiKey);
   if (!apiKey || !baseUrl) {
     return NextResponse.json({ error: 'apiKey and baseUrl required' }, { status: 400 });
   }
+  if (!isProviderProtocol(rawBody.protocol)) {
+    return NextResponse.json({ error: 'Invalid provider protocol' }, { status: 400 });
+  }
+  const protocol = rawBody.protocol;
   const cleanBase = baseUrl.replace(/\/+$/, '');
 
   try {
@@ -47,7 +67,7 @@ export async function POST(req: Request) {
       });
       if (!res.ok) {
         return NextResponse.json(
-          { error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` },
+          { error: upstreamErrorMessage(res.status, await res.text()) },
           { status: 400 },
         );
       }
@@ -59,14 +79,14 @@ export async function POST(req: Request) {
     });
     if (!res.ok) {
       return NextResponse.json(
-        { error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` },
+        { error: upstreamErrorMessage(res.status, await res.text()) },
         { status: 400 },
       );
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'unknown' },
+      { error: providerErrorMessage(e) },
       { status: 500 },
     );
   }

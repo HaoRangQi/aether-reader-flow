@@ -7,12 +7,24 @@
 import { useEffect } from 'react';
 import { useConfigStore } from '@/stores/configStore';
 
+let configHydration: Promise<void> | null = null;
+
 export function ConfigHydrator() {
   const hydrate = useConfigStore(s => s.hydrate);
 
   useEffect(() => {
-    void hydrate();
+    if (configHydration) {
+      return;
+    }
+
+    configHydration = hydrate().catch(() => {
+      configHydration = null;
+    });
   }, [hydrate]);
 
   return null;
+}
+
+export function _resetConfigHydratorForTests(): void {
+  configHydration = null;
 }

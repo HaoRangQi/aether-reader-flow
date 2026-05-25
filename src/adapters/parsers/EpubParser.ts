@@ -56,20 +56,22 @@ export class EpubParser implements DocumentParser {
     // 3. Walk spine → extract text + title per chapter
     const pageTexts: string[] = [];
     const outline: ParsedOutlineItem[] = [];
-    let index = 0;
     for (const itemId of spine) {
-      index++;
       const href = manifest.get(itemId);
       if (!href) continue;
-      const fullPath = normalizePath(opfBaseDir + href);
+      const fullPath = normalizePath(opfBaseDir + normalizeHref(href));
       const xhtmlFile = zip.file(fullPath);
       if (!xhtmlFile) continue;
       const xhtml = await xhtmlFile.async('string');
       const { title, text } = extractFromXhtml(xhtml);
       pageTexts.push(text);
       if (title) {
-        outline.push({ title, pageNumber: index });
+        outline.push({ title, pageNumber: pageTexts.length });
       }
+    }
+
+    if (pageTexts.length === 0) {
+      throw new Error('EPUB: no readable spine content found.');
     }
 
     return {
@@ -166,6 +168,16 @@ function decodeXmlEntities(s: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)));
+}
+
+/** Removes URL fragments and decodes percent-escaped paths without throwing. */
+function normalizeHref(href: string): string {
+  const withoutFragment = href.split('#', 1)[0];
+  try {
+    return decodeURIComponent(withoutFragment);
+  } catch {
+    return withoutFragment;
+  }
 }
 
 /** Resolves `..` segments so the path inside the zip is canonical. */

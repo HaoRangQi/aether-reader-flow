@@ -23,7 +23,7 @@ const REQUIRED_KEYS = [
 ] as const;
 
 describe('themes', () => {
-  it('exposes exactly 6 themes with required ids', () => {
+  it('exposes built-in themes with required ids', () => {
     const ids = THEMES.map(t => t.id).sort();
     expect(ids).toEqual([
       'bamboo',
@@ -32,6 +32,7 @@ describe('themes', () => {
       'newsprint',
       'ocean',
       'sheepskin',
+      'sprout',
     ]);
   });
 
@@ -49,6 +50,45 @@ describe('themes', () => {
   it('getTheme returns the named theme', () => {
     expect(getTheme('maple').name).toBe('枫丹');
     expect(getTheme('bamboo').name).toBe('竹翠');
+  });
+
+  it('getTheme normalizes whitespace and casing for durable config ids', () => {
+    expect(getTheme('  MAPLE  ').name).toBe('枫丹');
+    expect(getTheme('\nBamboo\t').name).toBe('竹翠');
+  });
+
+  it('getTheme falls back for blank or non-string runtime ids', () => {
+    expect(getTheme('   ').id).toBe('sheepskin');
+    expect(getTheme(undefined).id).toBe('sheepskin');
+    expect(getTheme(42).id).toBe('sheepskin');
+  });
+
+  it('getTheme normalizes custom theme ids without mutating the returned theme', () => {
+    const custom = {
+      ...THEMES[0],
+      id: 'Custom-Pack',
+      name: '自定义主题',
+    };
+
+    expect(getTheme(' custom-pack ', [custom])).toBe(custom);
+    expect(custom.id).toBe('Custom-Pack');
+  });
+
+  it('getTheme skips invalid custom theme entries', () => {
+    const custom = {
+      ...THEMES[0],
+      id: 'Custom-Pack',
+      name: '自定义主题',
+    };
+    const corruptedCustomThemes = [
+      null,
+      { id: 42 },
+      { id: 'broken' },
+      custom,
+    ];
+
+    expect(getTheme(' custom-pack ', corruptedCustomThemes)).toBe(custom);
+    expect(getTheme('broken', corruptedCustomThemes).id).toBe('sheepskin');
   });
 
   it('getTheme falls back to sheepskin for unknown ids', () => {

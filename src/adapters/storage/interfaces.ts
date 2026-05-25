@@ -15,6 +15,9 @@
 import type {
   Book,
   Chapter,
+  Annotation,
+  ReadingProgress,
+  ReadingSession,
   TimelineEntry,
   ModelService,
   CostRecord,
@@ -33,6 +36,8 @@ export interface BookRepo {
   /** Reverse-chronological by `uploadedAt`. */
   list(): Promise<Book[]>;
   update(id: string, patch: Partial<Book>): Promise<void>;
+  archive(id: string): Promise<void>;
+  restore(id: string): Promise<void>;
   delete(id: string): Promise<void>;
 }
 
@@ -44,6 +49,44 @@ export interface ChapterRepo {
   listByBook(bookId: string): Promise<Chapter[]>;
   update(id: string, patch: Partial<Chapter>): Promise<void>;
   delete(id: string): Promise<void>;
+}
+
+export type AnnotationInput = Omit<Annotation, 'id' | 'createdAt' | 'updatedAt'> & {
+  id?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export interface AnnotationRepo {
+  create(input: AnnotationInput): Promise<Annotation>;
+  get(id: string): Promise<Annotation | null>;
+  /** Reverse-chronological by creation time. */
+  listByBook(bookId: string): Promise<Annotation[]>;
+  /** Ascending by anchor start, then creation time. */
+  listByChapter(chapterId: string): Promise<Annotation[]>;
+  update(id: string, patch: Partial<Omit<Annotation, 'id' | 'createdAt'>>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+export type ReadingProgressInput = Omit<ReadingProgress, 'updatedAt'> & {
+  updatedAt?: Date;
+};
+
+export interface ReadingProgressRepo {
+  upsert(input: ReadingProgressInput): Promise<ReadingProgress>;
+  get(bookId: string): Promise<ReadingProgress | null>;
+  /** Progress rows for a set of books, keyed by bookId. */
+  listByBooks(bookIds: string[]): Promise<Record<string, ReadingProgress>>;
+  delete(bookId: string): Promise<void>;
+}
+
+export type ReadingSessionInput = Omit<ReadingSession, 'id'> & { id?: string };
+
+export interface ReadingSessionRepo {
+  add(input: ReadingSessionInput): Promise<ReadingSession>;
+  listByBook(bookId: string): Promise<ReadingSession[]>;
+  listInRange(from: Date, to: Date): Promise<ReadingSession[]>;
+  deleteByBook(bookId: string): Promise<void>;
 }
 
 export interface TimelineRepo {

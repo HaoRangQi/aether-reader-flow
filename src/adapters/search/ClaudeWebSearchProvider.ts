@@ -64,26 +64,53 @@ export class ClaudeWebSearchProvider implements SearchProvider {
  * Best-effort JSON extraction. The model may wrap the array in markdown
  * fences or add prose despite our prompt; we look for the first `[ ... ]`.
  */
-function parseSourcesFromJSON(text: string): SourceRef[] {
+export function parseSourcesFromJSON(text: string): SourceRef[] {
   const start = text.indexOf('[');
   const end = text.lastIndexOf(']');
   if (start === -1 || end === -1) return [];
   try {
-    const arr = JSON.parse(text.slice(start, end + 1)) as Array<{
-      url: string;
-      title: string;
-      snippet?: string;
-      publishedAt?: string;
-    }>;
+    const arr = JSON.parse(text.slice(start, end + 1)) as unknown;
+    if (!Array.isArray(arr)) return [];
     return arr
-      .filter(item => typeof item.url === 'string' && typeof item.title === 'string')
-      .map(item => ({
-        url: item.url,
-        title: item.title,
-        snippet: item.snippet ?? '',
-        publishedAt: item.publishedAt ? new Date(item.publishedAt) : undefined,
-      }));
+      .map(normalizeSourceRef)
+      .filter((item): item is SourceRef => item !== null);
   } catch {
     return [];
   }
+}
+
+function normalizeSourceRef(item: unknown): SourceRef | null {
+  if (!item || typeof item !== 'object') return null;
+  const source = item as Record<string, unknown>;
+  const { url: rawUrl, title: rawTitle, snippet: rawSnippet, publishedAt } = source;
+  if (typeof rawUrl !== 'string' || typeof rawTitle !== 'string') return null;
+  const url = normalizeHttpUrl(rawUrl);
+  const title = rawTitle.trim();
+  const snippet = typeof rawSnippet === 'string' ? rawSnippet.trim() : '';
+  const publishedAtString = typeof publishedAt === 'string' ? publishedAt : undefined;
+  if (!url || !title) return null;
+
+  return {
+    url,
+    title,
+    snippet,
+    publishedAt: normalizePublishedAt(publishedAtString),
+  };
+}
+
+function normalizeHttpUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function normalizePublishedAt(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : undefined;
 }

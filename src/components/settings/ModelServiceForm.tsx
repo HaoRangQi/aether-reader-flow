@@ -15,7 +15,7 @@
  * empty (some self-hosted endpoints don't implement /models).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { IndexedDBModelServiceRepo } from '@/adapters/storage/IndexedDBModelServiceRepo';
 import { getVault } from '@/lib/ai-service-client';
@@ -28,6 +28,41 @@ interface Props {
   existingId?: string;
   preset?: Preset;
   onClose: () => void;
+}
+
+const ERROR_TEXT_LIMIT = 200;
+
+function redactSecret(value: string, secret: string) {
+  if (!secret) return value;
+  return value.split(secret).join('[redacted]');
+}
+
+function truncateErrorText(value: string) {
+  const normalized = value.trim();
+  if (normalized.length <= ERROR_TEXT_LIMIT) return normalized;
+  return `${normalized.slice(0, ERROR_TEXT_LIMIT)}…`;
+}
+
+function getErrorField(value: unknown) {
+  if (!value || typeof value !== 'object' || !('error' in value)) return null;
+  const error = (value as { error: unknown }).error;
+  if (typeof error === 'string') return error.trim() || null;
+  return null;
+}
+
+function responseErrorMessage(status: number, text: string, secret: string) {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    const apiError = getErrorField(parsed);
+    if (apiError) {
+      return `HTTP ${status}: ${redactSecret(apiError, secret)}`;
+    }
+  } catch {
+    // Non-JSON responses fall through to the bounded text fallback.
+  }
+
+  const fallback = truncateErrorText(redactSecret(text, secret));
+  return fallback ? `HTTP ${status}: ${fallback}` : `HTTP ${status}`;
 }
 
 export function ModelServiceForm({ existingId, preset, onClose }: Props) {
@@ -56,6 +91,11 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const titleId = useId();
+  const fetchingRef = useRef(false);
+  const testingRef = useRef(false);
+  const savingRef = useRef(false);
+  const serviceInputsDisabled = fetching || testing || saving;
 
   useEffect(() => {
     if (!existingId) return;
@@ -71,69 +111,96 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
   }, [existingId]);
 
   const handleFetchCatalog = async () => {
-    if (!baseUrl) {
+    if (fetchingRef.current) return;
+    const trimmedBaseUrl = baseUrl.trim();
+    const trimmedApiKey = apiKey.trim();
+    if (!trimmedBaseUrl) {
       setError('请先填写 baseUrl');
       return;
     }
-    if (!apiKey && !existingId) {
+    if (!trimmedApiKey && !existingId) {
       setError('请先填写 API Key');
       return;
     }
     setError(null);
+    fetchingRef.current = true;
     setFetching(true);
-    setCatalog(null);
     try {
-      let keyForRequest = apiKey;
+      let keyForRequest = trimmedApiKey;
       if (!keyForRequest && existingId) {
         // Use the existing stored key (need vault unlocked)
         if (!vault.unlocked) {
-          throw new Error('请先输入主密码以读取已存的 API Key');
+          if (!masterPassword) {
+            throw new Error('请先输入主密码以读取已存的 API Key');
+          }
+          vault.unlock(masterPassword);
         }
         keyForRequest = await vault.getApiKey(existingId);
       }
       const res = await fetch('/api/models/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocol, baseUrl, apiKey: keyForRequest }),
+        body: JSON.stringify({ protocol, baseUrl: trimmedBaseUrl, apiKey: keyForRequest }),
       });
       if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
+        const text = await res.text();
+        throw new Error(responseErrorMessage(res.status, text, keyForRequest));
       }
       const json = (await res.json()) as { models: ModelInfo[] };
       setCatalog(json.models);
       if (json.models.length === 0) {
-        setError('endpoint 返回空模型列表，请手动输入模型 id');
+        setError('endpoint 返回空模型列表，请在“手动添加模型”中输入模型 id 后保存。');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : '拉取失败');
-      setCatalog([]);
+      const message = e instanceof Error ? e.message : '拉取失败';
+      setError(`拉取模型列表失败：${message}。已保留当前模型选择，可重试或手动添加模型。`);
+      setCatalog(prev => prev ?? []);
     } finally {
+      fetchingRef.current = false;
       setFetching(false);
     }
   };
 
   const handleTest = async () => {
-    if (!apiKey || !baseUrl) {
+    if (testingRef.current) return;
+    const trimmedBaseUrl = baseUrl.trim();
+    const trimmedApiKey = apiKey.trim();
+    if (!trimmedBaseUrl) {
+      setTestResult('请先填写 baseUrl');
+      return;
+    }
+    if (!trimmedApiKey && !existingId) {
       setTestResult('请先填写 baseUrl 与 API Key');
       return;
     }
+    testingRef.current = true;
     setTesting(true);
     setTestResult(null);
     try {
+      let keyForRequest = trimmedApiKey;
+      if (!keyForRequest && existingId) {
+        if (!vault.unlocked) {
+          if (!masterPassword) {
+            throw new Error('请先输入主密码以读取已存的 API Key');
+          }
+          vault.unlock(masterPassword);
+        }
+        keyForRequest = await vault.getApiKey(existingId);
+      }
       const res = await fetch('/api/models/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocol, baseUrl, apiKey }),
+        body: JSON.stringify({ protocol, baseUrl: trimmedBaseUrl, apiKey: keyForRequest }),
       });
       if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
+        const text = await res.text();
+        throw new Error(responseErrorMessage(res.status, text, keyForRequest));
       }
       setTestResult('✓ 连接成功');
     } catch (e) {
       setTestResult(`✗ ${e instanceof Error ? e.message : 'unknown'}`);
     } finally {
+      testingRef.current = false;
       setTesting(false);
     }
   };
@@ -148,10 +215,15 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
-      if (!name.trim() || !baseUrl.trim()) {
+      const trimmedName = name.trim();
+      const trimmedBaseUrl = baseUrl.trim();
+      const trimmedApiKey = apiKey.trim();
+      if (!trimmedName || !trimmedBaseUrl) {
         throw new Error('名称与 baseUrl 必填');
       }
 
@@ -168,7 +240,8 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
         throw new Error('请至少启用一个模型（勾选列表或在自定义中填写）');
       }
 
-      if (!vault.unlocked) {
+      const needsApiKeyEncryption = Boolean(trimmedApiKey) || !existingId;
+      if (needsApiKeyEncryption && !vault.unlocked) {
         if (!masterPassword) {
           throw new Error('请输入主密码以加密 API Key');
         }
@@ -177,8 +250,8 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
 
       let cipher = '';
       const repo = new IndexedDBModelServiceRepo();
-      if (apiKey) {
-        cipher = await vault.encryptForStorage(apiKey);
+      if (trimmedApiKey) {
+        cipher = await vault.encryptForStorage(trimmedApiKey);
       } else if (existingId) {
         const cur = await repo.get(existingId);
         cipher = cur?.apiKeyCipher ?? '';
@@ -188,9 +261,9 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
 
       if (existingId) {
         await repo.update(existingId, {
-          name,
+          name: trimmedName,
           protocol,
-          baseUrl,
+          baseUrl: trimmedBaseUrl,
           apiKeyCipher: cipher,
           enabledModels,
         });
@@ -198,9 +271,9 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
         const id = `svc-${crypto.randomUUID()}`;
         await repo.create({
           id,
-          name,
+          name: trimmedName,
           protocol,
-          baseUrl,
+          baseUrl: trimmedBaseUrl,
           apiKeyCipher: cipher,
           enabled: true,
           enabledModels,
@@ -209,8 +282,10 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
       }
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      setError(redactSecret(message, apiKey.trim() || apiKey));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -226,6 +301,7 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
       }}
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
     >
       <GlassPanel
         className="w-[600px] p-6 max-h-[90vh] overflow-y-auto"
@@ -233,16 +309,27 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-5">
-          <h3 className="font-serif text-xl">
+          <h3 id={titleId} className="font-serif text-xl">
             {existingId ? '编辑模型服务' : '添加模型服务'}
           </h3>
-          <button onClick={onClose} className="text-muted hover:text-foreground p-1">
+          <button
+            onClick={onClose}
+            type="button"
+            className="text-muted hover:text-foreground p-1"
+            aria-label="关闭模型服务表单"
+          >
             <X size={16} />
           </button>
         </div>
 
         <div className="space-y-4">
-          <Field label="名称" value={name} onChange={setName} autoComplete="off" />
+          <Field
+            label="名称"
+            value={name}
+            onChange={setName}
+            autoComplete="off"
+            disabled={saving}
+          />
           <Field
             label="Base URL"
             value={baseUrl}
@@ -250,41 +337,63 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
             hint="如 https://api.openai.com/v1，末尾无斜杠"
             inputMode="url"
             autoComplete="url"
+            disabled={serviceInputsDisabled}
           />
 
           <div>
-            <div className="text-sm text-muted mb-1">协议</div>
+            <label htmlFor="model-service-protocol" className="text-sm text-muted mb-1 block">
+              协议
+            </label>
             <select
+              id="model-service-protocol"
               value={protocol}
               onChange={e => setProtocol(e.target.value as 'anthropic' | 'openai')}
+              disabled={serviceInputsDisabled}
+              aria-label="协议"
+              aria-describedby="model-service-protocol-help"
               className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-foreground"
             >
               <option value="anthropic">Anthropic 原生</option>
               <option value="openai">OpenAI 兼容（覆盖大部分中转站）</option>
             </select>
+            <div id="model-service-protocol-help" className="text-xs text-subtle mt-1">
+              选择 endpoint 使用的模型服务协议。
+            </div>
           </div>
 
           <div>
-            <div className="text-sm text-muted mb-1">
+            <label htmlFor="model-service-api-key" className="text-sm text-muted mb-1 block">
               API Key
               {existingId && <span className="ml-2 text-xs">（留空保持原值）</span>}
-            </div>
+            </label>
             <div className="relative">
               <input
+                id="model-service-api-key"
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
+                disabled={serviceInputsDisabled}
                 placeholder="sk-…"
+                aria-label="API Key"
+                aria-describedby="model-service-api-key-help"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="w-full bg-surface border border-border rounded-md px-3 py-2 pr-10 text-sm text-foreground"
               />
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
+                disabled={serviceInputsDisabled}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
                 aria-label={showKey ? '隐藏' : '显示'}
               >
                 {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
+            </div>
+            <div id="model-service-api-key-help" className="text-xs text-subtle mt-1">
+              {existingId ? '留空会继续使用已保存的 API Key。' : '首次创建模型服务必须填写 API Key。'}
             </div>
           </div>
 
@@ -295,6 +404,7 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
               onChange={setMasterPassword}
               type="password"
               hint="用于加密 API Key（首次会同时设置）"
+              disabled={saving}
             />
           )}
 
@@ -302,14 +412,19 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
           <div className="border-t border-divider pt-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="text-sm text-foreground">启用模型</div>
-                <div className="text-xs text-subtle">
+                <div id="model-service-models-label" className="text-sm text-foreground">
+                  启用模型
+                </div>
+                <div id="model-service-models-help" className="text-xs text-subtle">
                   从 endpoint 拉取列表勾选，或在下方手动添加
                 </div>
               </div>
               <button
                 onClick={handleFetchCatalog}
-                disabled={fetching || !baseUrl}
+                type="button"
+                disabled={fetching || testing || saving || !baseUrl}
+                aria-busy={fetching}
+                aria-describedby="model-service-models-help model-service-fetch-status"
                 className="text-sm border border-border px-3 py-1.5 rounded-md hover:bg-surface-elevated disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 <RefreshCw size={14} className={fetching ? 'animate-spin' : ''} />
@@ -317,8 +432,22 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
               </button>
             </div>
 
+            <div
+              id="model-service-fetch-status"
+              className="sr-only"
+              role="status"
+              aria-live="polite"
+            >
+              {fetching ? '正在拉取模型列表，请稍候。' : ''}
+            </div>
+
             {catalog && catalog.length > 0 && (
-              <div className="border border-border rounded-md max-h-48 overflow-y-auto">
+              <div
+                className="border border-border rounded-md max-h-48 overflow-y-auto"
+                role="group"
+                aria-labelledby="model-service-models-label"
+                aria-describedby="model-service-models-help"
+              >
                 {catalog.map(m => (
                   <label
                     key={m.id}
@@ -327,6 +456,7 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
                     <input
                       type="checkbox"
                       checked={enabledIds.has(m.id)}
+                      disabled={saving}
                       onChange={() => toggleModel(m.id)}
                     />
                     <div className="flex-1 min-w-0">
@@ -357,8 +487,13 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
             )}
 
             {catalog && catalog.length === 0 && (
-              <div className="text-xs text-subtle flex items-center gap-1.5 mb-2">
-                <AlertCircle size={12} /> endpoint 未返回列表 — 请手动添加
+              <div
+                className="text-xs text-subtle flex items-center gap-1.5 mb-2"
+                role="status"
+                aria-live="polite"
+              >
+                <AlertCircle size={12} />
+                没有可勾选的模型。请在“手动添加模型”中输入模型 id，保存时会合并到启用列表。
               </div>
             )}
 
@@ -378,8 +513,10 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
                         {id}
                         <button
                           onClick={() => toggleModel(id)}
+                          type="button"
+                          disabled={saving}
                           className="text-muted hover:text-danger"
-                          aria-label="移除"
+                          aria-label={`移除模型 ${id}`}
                         >
                           ×
                         </button>
@@ -395,6 +532,7 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
                 value={manualCSV}
                 onChange={setManualCSV}
                 hint="例：gpt-4o, my-custom-model-v2"
+                disabled={saving}
               />
             </div>
           </div>
@@ -402,18 +540,22 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
           <div className="flex items-center gap-3 pt-2 border-t border-divider">
             <button
               onClick={handleTest}
-              disabled={testing}
+              type="button"
+              disabled={fetching || testing || saving}
+              aria-busy={testing}
+              aria-describedby="model-service-test-status"
               className="text-sm border border-border px-3 py-1.5 rounded-md hover:bg-surface-elevated disabled:opacity-50"
             >
               {testing ? '测试中…' : '测试连接'}
             </button>
-            {testResult && (
-              <span
-                className={`text-sm ${testResult.startsWith('✓') ? 'text-success' : 'text-danger'}`}
-              >
-                {testResult}
-              </span>
-            )}
+            <span
+              id="model-service-test-status"
+              className={`text-sm ${testResult?.startsWith('✓') ? 'text-success' : testResult ? 'text-danger' : 'sr-only'}`}
+              role={testResult?.startsWith('✗') ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {testing ? '正在测试连接，请稍候。' : testResult || ''}
+            </span>
           </div>
 
           {error && (
@@ -425,6 +567,7 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={onClose}
+              type="button"
               disabled={saving}
               className="text-sm text-muted hover:text-foreground disabled:opacity-50"
             >
@@ -432,7 +575,8 @@ export function ModelServiceForm({ existingId, preset, onClose }: Props) {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              type="button"
+              disabled={fetching || testing || saving}
               className="bg-accent text-white px-4 py-2 rounded-md text-sm hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
             >
               {saving ? '保存中…' : '保存'}
@@ -452,6 +596,7 @@ function Field({
   hint,
   inputMode,
   autoComplete,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -460,16 +605,26 @@ function Field({
   hint?: string;
   inputMode?: 'text' | 'url' | 'email' | 'numeric';
   autoComplete?: string;
+  disabled?: boolean;
 }) {
+  const fieldId = useId();
+  const hintId = hint ? `${fieldId}-hint` : undefined;
+
   return (
     <div>
-      <div className="text-sm text-muted mb-1">{label}</div>
+      <label htmlFor={fieldId} className="text-sm text-muted mb-1 block">
+        {label}
+      </label>
       <input
+        id={fieldId}
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
+        disabled={disabled}
         inputMode={inputMode}
         autoComplete={autoComplete}
+        aria-label={label}
+        aria-describedby={hintId}
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
@@ -483,7 +638,11 @@ function Field({
         onCut={e => e.stopPropagation()}
         className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-foreground"
       />
-      {hint && <div className="text-xs text-subtle mt-1">{hint}</div>}
+      {hint && (
+        <div id={hintId} className="text-xs text-subtle mt-1">
+          {hint}
+        </div>
+      )}
     </div>
   );
 }

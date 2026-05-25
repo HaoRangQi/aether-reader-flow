@@ -81,4 +81,30 @@ describe('prompt invariants', () => {
     expect(p).toContain('M2');
     expect(p).toContain('explain');
   });
+
+  it('chat prompt omits blank anchor and memory sections', () => {
+    const p = buildChatSystemPrompt({
+      anchorText: ' \n\t ',
+      anchorType: 'explain',
+      memorySummary: ' \n\t ',
+    });
+
+    expect(p).not.toContain('用户当前关注的原文片段');
+    expect(p).not.toContain('前置任务类型');
+    expect(p).not.toContain('较早对话记忆');
+  });
+
+  it('chat prompt normalizes and bounds dynamic context', () => {
+    const p = buildChatSystemPrompt({
+      anchorText: '  M2\n\n增速\t回升  ',
+      memorySummary: '旧问题 '.repeat(700),
+    });
+
+    expect(p).toContain('M2 增速 回升');
+    expect(p).toContain('较早对话记忆');
+    expect(p).toContain('…');
+
+    const memory = p.split('较早对话记忆（由系统压缩，仅作背景）：\n')[1] ?? '';
+    expect(memory.length).toBeLessThanOrEqual(1_800);
+  });
 });

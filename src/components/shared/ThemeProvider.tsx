@@ -42,12 +42,11 @@ function applyTokens(t: ColorTokens) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme, font, hydrated } = useConfigStore();
+  const { theme, font, selectionPrefs, customThemes, hydrated } = useConfigStore();
 
-  // Apply on theme/font/hydration changes
   useEffect(() => {
     if (!hydrated) return;
-    const themeObj = getTheme(theme.id);
+    const themeObj = getTheme(theme.id, customThemes);
     const isDark =
       theme.mode === 'dark' ||
       (theme.mode === 'auto' &&
@@ -55,34 +54,64 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle('dark', isDark);
     applyTokens(isDark ? themeObj.dark : themeObj.light);
 
+    // Reader font
     document.documentElement.style.setProperty(
-      '--user-font-family',
-      font.family === 'custom' && font.customCSS
-        ? font.customCSS
-        : 'var(--font-serif)',
+      '--reader-font-family',
+      font.readerFamily === 'default'
+        ? 'var(--font-serif)'
+        : font.readerFontValue || 'var(--font-serif)',
     );
-    document.documentElement.style.setProperty(
-      '--reader-font-size',
-      `${font.size}px`,
-    );
-    document.documentElement.style.setProperty(
-      '--reader-line-height',
-      `${font.lineHeight}`,
-    );
-  }, [theme, font, hydrated]);
+    document.documentElement.style.setProperty('--reader-font-size', `${font.readerSize}px`);
+    document.documentElement.style.setProperty('--reader-line-height', `${font.readerLineHeight}`);
 
-  // Subscribe to OS theme changes when in `auto` mode
+    // UI font (whole app shell)
+    document.documentElement.style.setProperty(
+      '--ui-font-family',
+      font.uiFamily === 'default'
+        ? 'var(--font-sans)'
+        : font.uiFontValue || 'var(--font-sans)',
+    );
+
+    // Bubble appearance — fall back to theme glass tokens when empty
+    const tokens = isDark ? themeObj.dark : themeObj.light;
+    document.documentElement.style.setProperty(
+      '--color-bubble-bg',
+      selectionPrefs.bubbleBg || tokens.glassOverlay,
+    );
+    document.documentElement.style.setProperty(
+      '--color-bubble-text',
+      selectionPrefs.bubbleText || tokens.text,
+    );
+    document.documentElement.style.setProperty(
+      '--color-bubble-accent',
+      selectionPrefs.bubbleAccent || tokens.accent,
+    );
+  }, [theme, font, selectionPrefs, customThemes, hydrated]);
+
   useEffect(() => {
     if (theme.mode !== 'auto') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
-      const themeObj = getTheme(theme.id);
+      const themeObj = getTheme(theme.id, customThemes);
       document.documentElement.classList.toggle('dark', mq.matches);
       applyTokens(mq.matches ? themeObj.dark : themeObj.light);
+      const tokens = mq.matches ? themeObj.dark : themeObj.light;
+      document.documentElement.style.setProperty(
+        '--color-bubble-bg',
+        selectionPrefs.bubbleBg || tokens.glassOverlay,
+      );
+      document.documentElement.style.setProperty(
+        '--color-bubble-text',
+        selectionPrefs.bubbleText || tokens.text,
+      );
+      document.documentElement.style.setProperty(
+        '--color-bubble-accent',
+        selectionPrefs.bubbleAccent || tokens.accent,
+      );
     };
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
-  }, [theme.mode, theme.id]);
+  }, [theme.mode, theme.id, selectionPrefs, customThemes]);
 
   return <>{children}</>;
 }

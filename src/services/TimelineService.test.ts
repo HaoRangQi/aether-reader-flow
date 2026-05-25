@@ -36,11 +36,41 @@ describe('TimelineService', () => {
     expect(list.map(e => e.id)).toEqual(['b', 'a']);
   });
 
+  it('does not mutate the repository result while sorting', async () => {
+    const entries = [
+      mk({ id: 'a', timestamp: new Date(2024, 0, 1) }),
+      mk({ id: 'b', timestamp: new Date(2024, 0, 2) }),
+    ];
+    const stableRepo = {
+      listByBook: async () => entries,
+      listByChapter: async () => [],
+      search: async () => [],
+      create: async () => undefined,
+      get: async () => null,
+      delete: async () => undefined,
+    };
+    const service = new TimelineService(stableRepo);
+
+    const list = await service.listForBook('b1');
+
+    expect(list.map(e => e.id)).toEqual(['b', 'a']);
+    expect(entries.map(e => e.id)).toEqual(['a', 'b']);
+  });
+
   it('filters by chapter', async () => {
     await repo.create(mk({ id: 'a', chapterId: 'c1' }));
     await repo.create(mk({ id: 'b', chapterId: 'c2' }));
     const list = await svc.listForBook('b1', { chapterId: 'c1' });
     expect(list.map(e => e.id)).toEqual(['a']);
+  });
+
+  it('treats blank chapter filters as no chapter filter', async () => {
+    await repo.create(mk({ id: 'a', chapterId: 'c1' }));
+    await repo.create(mk({ id: 'b', chapterId: 'c2' }));
+
+    const list = await svc.listForBook('b1', { chapterId: '   ' });
+
+    expect(list.map(e => e.id).sort()).toEqual(['a', 'b']);
   });
 
   it('filters by task type', async () => {
@@ -76,6 +106,65 @@ describe('TimelineService', () => {
     await repo.create(mk({ id: 'a', aiResponse: 'Broad Money Supply' }));
     const r = await svc.search('b1', 'money');
     expect(r.length).toBe(1);
+  });
+
+  it('treats blank search queries as an unsearched filtered timeline', async () => {
+    await repo.create(mk({
+      id: 'a',
+      chapterId: 'c1',
+      type: 'translate',
+      timestamp: new Date(2024, 0, 1),
+      aiResponse: 'Broad Money Supply',
+    }));
+    await repo.create(mk({
+      id: 'b',
+      chapterId: 'c1',
+      type: 'verify',
+      timestamp: new Date(2024, 0, 2),
+      aiResponse: 'Inflation pressure',
+    }));
+    await repo.create(mk({
+      id: 'c',
+      chapterId: 'c2',
+      type: 'translate',
+      timestamp: new Date(2024, 0, 3),
+      aiResponse: 'Credit cycle',
+    }));
+
+    const r = await svc.search('b1', '   ', {
+      chapterId: 'c1',
+      types: ['translate'],
+    });
+
+    expect(r.map(e => e.id)).toEqual(['a']);
+  });
+
+  it('search applies chapter and task filters', async () => {
+    await repo.create(mk({
+      id: 'a',
+      chapterId: 'c1',
+      type: 'translate',
+      aiResponse: 'inflation pressure',
+    }));
+    await repo.create(mk({
+      id: 'b',
+      chapterId: 'c2',
+      type: 'translate',
+      aiResponse: 'inflation pressure',
+    }));
+    await repo.create(mk({
+      id: 'c',
+      chapterId: 'c1',
+      type: 'verify',
+      aiResponse: 'inflation pressure',
+    }));
+
+    const r = await svc.search('b1', 'inflation', {
+      chapterId: 'c1',
+      types: ['translate'],
+    });
+
+    expect(r.map(e => e.id)).toEqual(['a']);
   });
 
   it('delete', async () => {

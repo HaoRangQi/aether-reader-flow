@@ -34,10 +34,29 @@ describe('IndexedDBModelServiceRepo', () => {
     expect(list.map(s => s.name)).toEqual(['Alpha', 'Zeta']);
   });
 
+  it('normalizes enabled model ids before storing a service', async () => {
+    await repo.create({
+      ...mk('s1', 'Anthropic'),
+      enabledModels: [' claude-sonnet-4-6 ', '', 'claude-sonnet-4-6', 42] as never,
+    });
+
+    expect((await repo.get('s1'))?.enabledModels).toEqual(['claude-sonnet-4-6']);
+  });
+
   it('updates a service partial', async () => {
     await repo.create(mk('s1', 'Orig'));
     await repo.update('s1', { name: 'Renamed' });
     expect((await repo.get('s1'))?.name).toBe('Renamed');
+  });
+
+  it('normalizes enabled model ids on partial update', async () => {
+    await repo.create(mk('s1', 'Orig'));
+
+    await repo.update('s1', {
+      enabledModels: [' gpt-4o ', 'gpt-4o-mini', 'gpt-4o', null] as never,
+    });
+
+    expect((await repo.get('s1'))?.enabledModels).toEqual(['gpt-4o', 'gpt-4o-mini']);
   });
 
   it('deletes a service', async () => {

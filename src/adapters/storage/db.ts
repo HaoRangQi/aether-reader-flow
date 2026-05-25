@@ -30,6 +30,9 @@ import Dexie, { type Table } from 'dexie';
 import type {
   Book,
   Chapter,
+  Annotation,
+  ReadingProgress,
+  ReadingSession,
   TimelineEntry,
   ModelService,
   CostRecord,
@@ -59,6 +62,9 @@ export interface ConfigEntry {
 class AetherDb extends Dexie {
   books!: Table<Book, string>;
   chapters!: Table<Chapter, string>;
+  annotations!: Table<Annotation, string>;
+  readingProgress!: Table<ReadingProgress, string>;
+  readingSessions!: Table<ReadingSession, string>;
   pages!: Table<PageRecord, string>;
   timeline!: Table<TimelineEntry, string>;
   configs!: Table<ConfigEntry, string>;
@@ -73,6 +79,51 @@ class AetherDb extends Dexie {
     this.version(1).stores({
       books: 'id, title, uploadedAt',
       chapters: 'id, bookId, [bookId+orderIndex]',
+      pages: 'id, chapterId, [chapterId+pageNumber]',
+      timeline: 'id, bookId, chapterId, timestamp, [bookId+timestamp]',
+      configs: 'key',
+      modelServices: 'id, name',
+      costRecords: 'id, timestamp, [timestamp+model]',
+    });
+    this.version(2).stores({
+      books: 'id, title, uploadedAt',
+      chapters: 'id, bookId, [bookId+orderIndex]',
+      annotations: 'id, bookId, chapterId, type, createdAt, [bookId+createdAt], [chapterId+createdAt]',
+      pages: 'id, chapterId, [chapterId+pageNumber]',
+      timeline: 'id, bookId, chapterId, timestamp, [bookId+timestamp]',
+      configs: 'key',
+      modelServices: 'id, name',
+      costRecords: 'id, timestamp, [timestamp+model]',
+    });
+    this.version(3).stores({
+      books: 'id, title, uploadedAt',
+      chapters: 'id, bookId, [bookId+orderIndex]',
+      annotations: 'id, bookId, chapterId, type, createdAt, [bookId+createdAt], [chapterId+createdAt]',
+      readingProgress: 'bookId, updatedAt',
+      pages: 'id, chapterId, [chapterId+pageNumber]',
+      timeline: 'id, bookId, chapterId, timestamp, [bookId+timestamp]',
+      configs: 'key',
+      modelServices: 'id, name',
+      costRecords: 'id, timestamp, [timestamp+model]',
+    });
+    this.version(4).stores({
+      books: 'id, title, uploadedAt',
+      chapters: 'id, bookId, [bookId+orderIndex]',
+      annotations: 'id, bookId, chapterId, type, createdAt, [bookId+createdAt], [chapterId+createdAt]',
+      readingProgress: 'bookId, updatedAt',
+      readingSessions: 'id, bookId, chapterId, startedAt, endedAt, [bookId+startedAt]',
+      pages: 'id, chapterId, [chapterId+pageNumber]',
+      timeline: 'id, bookId, chapterId, timestamp, [bookId+timestamp]',
+      configs: 'key',
+      modelServices: 'id, name',
+      costRecords: 'id, timestamp, [timestamp+model]',
+    });
+    this.version(5).stores({
+      books: 'id, title, uploadedAt, archivedAt',
+      chapters: 'id, bookId, [bookId+orderIndex]',
+      annotations: 'id, bookId, chapterId, type, createdAt, [bookId+createdAt], [chapterId+createdAt]',
+      readingProgress: 'bookId, updatedAt',
+      readingSessions: 'id, bookId, chapterId, startedAt, endedAt, [bookId+startedAt]',
       pages: 'id, chapterId, [chapterId+pageNumber]',
       timeline: 'id, bookId, chapterId, timestamp, [bookId+timestamp]',
       configs: 'key',

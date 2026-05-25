@@ -14,15 +14,16 @@ export default defineConfig({
   reporter: 'list',
   timeout: 60_000,
   use: {
-    baseURL: 'http://localhost:3001',
+    baseURL: 'http://127.0.0.1:3137',
+    locale: 'zh-CN',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'PORT=3001 npm run dev',
-    url: 'http://localhost:3001',
+    command: 'npm run build && npm run start -- -H 127.0.0.1 -p 3137',
+    url: 'http://127.0.0.1:3137',
     timeout: 120_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

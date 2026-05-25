@@ -25,6 +25,19 @@ export interface ChatChunk {
   outputTokens?: number;
   /** Populated when `type === 'error'`. Stream ends after this chunk. */
   error?: string;
+  /** Machine-readable error category for client UX. */
+  errorKind?:
+    | 'cancelled'
+    | 'timeout'
+    | 'auth'
+    | 'rate_limit'
+    | 'server'
+    | 'validation'
+    | 'network'
+    | 'config'
+    | 'unknown';
+  /** Whether the same request is worth trying again. */
+  retryable?: boolean;
 }
 
 /** Common fields every AI request carries for billing + timeline persistence. */

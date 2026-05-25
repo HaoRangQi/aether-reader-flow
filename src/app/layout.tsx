@@ -8,7 +8,7 @@
  * to `document.documentElement.classList` and inline `style` before React
  * hydrates, intentionally causing a mismatch with server output.
  */
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ConfigHydrator } from "@/components/shared/ConfigHydrator";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
@@ -19,6 +19,25 @@ import { NarrowViewportNotice } from "@/components/shared/NarrowViewportNotice";
 export const metadata: Metadata = {
   title: "Aether Reader Flow",
   description: "让你读懂一本书的 AI 辅助阅读",
+  applicationName: "Aether Reader Flow",
+  appleWebApp: {
+    capable: true,
+    title: "Aether",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FAF8F4" },
+    { media: "(prefers-color-scheme: dark)", color: "#171412" },
+  ],
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({

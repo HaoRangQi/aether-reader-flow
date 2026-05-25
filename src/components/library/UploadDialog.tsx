@@ -4,9 +4,17 @@ import { useState } from 'react';
 import { BookService, detectFormat } from '@/services/BookService';
 import { PdfParser } from '@/adapters/parsers/PdfParser';
 import { EpubParser } from '@/adapters/parsers/EpubParser';
+import { TxtParser } from '@/adapters/parsers/TxtParser';
 import { IndexedDBBookRepo } from '@/adapters/storage/IndexedDBBookRepo';
 import { IndexedDBChapterRepo } from '@/adapters/storage/IndexedDBChapterRepo';
 import { useT } from '@/components/shared/I18nProvider';
+import {
+  createUploadBatch,
+  updateUploadBatchItem,
+  uploadBatchPercent,
+  uploadBatchSummary,
+  type UploadBatchItem,
+} from '@/lib/upload-progress';
 
 interface Props {
   open: boolean;
@@ -17,7 +25,7 @@ interface Props {
 const MAX_BYTES = 500 * 1024 * 1024;
 
 /**
- * Modal dialog for uploading a book. Accepts PDF or EPUB. Parsing runs
+ * Modal dialog for uploading a book. Accepts PDF, EPUB, or TXT. Parsing runs
  * client-side via `BookService.upload`, which routes to the right parser
  * based on MIME type / extension.
  *
@@ -30,8 +38,9 @@ const MAX_BYTES = 500 * 1024 * 1024;
 export function UploadDialog({ open, onClose, onUploaded }: Props) {
   const t = useT();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [progress, setProgress] = useState<string>('');
+  const [batchItems, setBatchItems] = useState<UploadBatchItem[]>([]);
   const [hover, setHover] = useState(false);
 
   if (!open) return null;
@@ -52,48 +61,98 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
     return null;
   };
 
-  const handleFile = async (file: File) => {
-    setError(null);
+  const handleFiles = async (files: FileList | File[]) => {
+    const queue = Array.from(files);
+    if (queue.length === 0) return;
+    setErrors([]);
     setProgress('');
-    const fail = validate(file);
-    if (fail) {
-      setError(fail);
-      return;
-    }
+    const initialItems = createUploadBatch(queue);
+    setBatchItems(initialItems);
     setBusy(true);
-    const fmt = detectFormat(file, file.name)!;
-    setProgress(`${t('upload.parsing')} ${fmt.toUpperCase()}…`);
+    const failures: string[] = [];
+    let uploaded = 0;
+
     try {
       const svc = new BookService(
-        { pdf: new PdfParser(), epub: new EpubParser() },
+        { pdf: new PdfParser(), epub: new EpubParser(), txt: new TxtParser() },
         new IndexedDBBookRepo(),
         new IndexedDBChapterRepo(),
       );
-      await svc.upload(file, file.name);
-      setProgress(t('upload.done'));
-      onUploaded();
-      onClose();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : t('upload.failed');
-      setError(msg);
-      setProgress('');
+      for (let index = 0; index < queue.length; index++) {
+        const file = queue[index];
+        const itemId = initialItems[index].id;
+        const fail = validate(file);
+        if (fail) {
+          failures.push(`${file.name || '?'}：${fail}`);
+          setBatchItems(items => updateUploadBatchItem(items, itemId, {
+            status: 'failed',
+            detail: fail,
+          }));
+          continue;
+        }
+        const fmt = detectFormat(file, file.name)!;
+        setBatchItems(items => updateUploadBatchItem(items, itemId, {
+          status: 'parsing',
+          format: fmt.toUpperCase(),
+        }));
+        setProgress(
+          `${t('upload.parsing')} ${index + 1}/${queue.length} · ${fmt.toUpperCase()} · ${file.name}`,
+        );
+        try {
+          await svc.upload(file, file.name);
+          uploaded++;
+          setBatchItems(items => updateUploadBatchItem(items, itemId, {
+            status: 'done',
+            format: fmt.toUpperCase(),
+          }));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : t('upload.failed');
+          failures.push(`${file.name || '?'}：${msg}`);
+          setBatchItems(items => updateUploadBatchItem(items, itemId, {
+            status: 'failed',
+            format: fmt.toUpperCase(),
+            detail: msg,
+          }));
+        }
+      }
+
+      if (uploaded > 0) onUploaded();
+      if (failures.length === 0 && uploaded > 0) {
+        setProgress(t('upload.done'));
+        onClose();
+      } else {
+        setProgress(uploaded > 0 ? `已导入 ${uploaded}/${queue.length} 本` : '');
+        setErrors(failures);
+      }
     } finally {
       setBusy(false);
     }
   };
 
+  const batchPercent = uploadBatchPercent(batchItems);
+  const batchSummary = uploadBatchSummary(batchItems);
+  const batchProcessed = batchSummary.done + batchSummary.failed;
+  const batchLiveText =
+    batchItems.length > 0
+      ? `批量上传进度：已处理 ${batchProcessed}/${batchSummary.total}，${batchPercent}%${
+          batchSummary.failed > 0 ? `，失败 ${batchSummary.failed}` : ''
+        }`
+      : '';
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setHover(false);
     if (busy) return;
-    const f = e.dataTransfer.files?.[0];
-    if (f) void handleFile(f);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) void handleFiles(files);
   };
 
   return (
     <div
       className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
-      onClick={onClose}
+      onClick={() => {
+        if (!busy) onClose();
+      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="upload-dialog-title"
@@ -124,11 +183,12 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
           <div className="text-xs text-subtle">{t('upload.formats')}</div>
           <input
             type="file"
-            accept=".pdf,.epub,application/pdf,application/epub+zip"
+            multiple
+            accept=".pdf,.epub,.txt,application/pdf,application/epub+zip,text/plain"
             disabled={busy}
             onChange={e => {
-              const f = e.target.files?.[0];
-              if (f) void handleFile(f);
+              const files = e.target.files;
+              if (files && files.length > 0) void handleFiles(files);
               e.target.value = '';
             }}
             className="hidden"
@@ -140,9 +200,63 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
             {progress}
           </div>
         )}
-        {error && (
+        {batchItems.length > 0 && (
+          <div
+            className="mt-4 rounded-lg border border-divider bg-background/50 p-3"
+            aria-live="polite"
+            aria-atomic="true"
+            aria-label="批量上传进度"
+          >
+            <div className="mb-2 flex items-center justify-between text-xs text-subtle">
+              <span id="upload-batch-summary">
+                已处理 {batchProcessed}/{batchSummary.total}
+                {batchSummary.failed > 0 ? ` · 失败 ${batchSummary.failed}` : ''}
+              </span>
+              <span>{batchPercent}%</span>
+            </div>
+            <div
+              className="h-1.5 overflow-hidden rounded-full bg-border"
+              role="progressbar"
+              aria-label="批量上传进度"
+              aria-describedby="upload-batch-summary"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={batchPercent}
+              aria-valuetext={batchLiveText}
+            >
+              <div
+                className="h-full rounded-full bg-accent transition-all"
+                style={{ width: `${batchPercent}%` }}
+              />
+            </div>
+            <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+              {batchItems.map(item => (
+                <li
+                  key={item.id}
+                  className="flex items-start justify-between gap-3 text-xs"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-foreground">{item.name}</div>
+                    {item.detail && (
+                      <div className="mt-0.5 line-clamp-2 text-danger">{item.detail}</div>
+                    )}
+                  </div>
+                  <span className={`shrink-0 rounded px-2 py-0.5 ${statusClass(item.status)}`}>
+                    {statusLabel(item)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {errors.length > 0 && (
           <div className="mt-4 text-sm text-danger" role="alert">
-            {error}
+            <div className="mb-1">部分文件导入失败：</div>
+            <ul className="max-h-28 space-y-1 overflow-y-auto">
+              {errors.map(error => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
           </div>
         )}
         <div className="mt-6 text-right">
@@ -157,4 +271,18 @@ export function UploadDialog({ open, onClose, onUploaded }: Props) {
       </div>
     </div>
   );
+}
+
+function statusLabel(item: UploadBatchItem): string {
+  if (item.status === 'pending') return '等待中';
+  if (item.status === 'parsing') return item.format ? `解析中 · ${item.format}` : '解析中';
+  if (item.status === 'done') return '完成';
+  return '失败';
+}
+
+function statusClass(status: UploadBatchItem['status']): string {
+  if (status === 'done') return 'bg-success/10 text-success';
+  if (status === 'failed') return 'bg-danger/10 text-danger';
+  if (status === 'parsing') return 'bg-info/10 text-info';
+  return 'bg-surface text-subtle';
 }

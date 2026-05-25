@@ -109,6 +109,87 @@ describe('OpenAICompatibleProvider', () => {
     expect(text.join('')).toBe('AB');
   });
 
+  it('handles CRLF-delimited SSE frames', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        streamOfChunks([
+          'data: {"choices":[{"delta":{"content":"A"}}]}\r\n\r\n',
+          'data: {"choices":[{"delta":{"content":"B"}}]}\r\n\r\n',
+          'data: {"usage":{"prompt_tokens":3,"completion_tokens":4}}\r\n\r\n',
+        ]),
+        { status: 200 },
+      ),
+    );
+    const p = new OpenAICompatibleProvider({
+      id: 's1',
+      baseUrl: 'https://x',
+      apiKey: 'k',
+    });
+    const out = [];
+    for await (const c of p.chat({
+      modelId: 'gpt-4o',
+      messages: [{ role: 'user', content: 'x' }],
+    })) {
+      out.push(c);
+    }
+
+    expect(out.filter(c => c.type === 'text').map(c => c.text).join('')).toBe('AB');
+    expect(out.find(c => c.type === 'usage')?.inputTokens).toBe(3);
+  });
+
+  it('flushes a final SSE frame without a trailing blank line', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        streamOfChunks([
+          'data: {"choices":[{"delta":{"content":"Tail"}}]}',
+        ]),
+        { status: 200 },
+      ),
+    );
+    const p = new OpenAICompatibleProvider({
+      id: 's1',
+      baseUrl: 'https://x',
+      apiKey: 'k',
+    });
+    const text = [];
+    for await (const c of p.chat({
+      modelId: 'gpt-4o',
+      messages: [{ role: 'user', content: 'x' }],
+    })) {
+      if (c.type === 'text') text.push(c.text);
+    }
+
+    expect(text.join('')).toBe('Tail');
+  });
+
+  it('lists models with pricing metadata', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: 'gpt-4o' },
+          { id: 'unknown-openai-compatible-model' },
+        ],
+      }),
+    );
+    const p = new OpenAICompatibleProvider({
+      id: 's1',
+      baseUrl: 'https://x',
+      apiKey: 'k',
+    });
+
+    const models = await p.listModels();
+
+    expect(models.find(model => model.id === 'gpt-4o')?.pricing).toEqual({
+      input: 2.5,
+      output: 10,
+    });
+    expect(models.find(model => model.id === 'unknown-openai-compatible-model')?.pricing).toMatchObject({
+      input: 1,
+      output: 5,
+      estimated: true,
+    });
+  });
+
   it('testConnection returns true on 200', async () => {
     fetchMock.mockResolvedValueOnce(new Response('ok', { status: 200 }));
     const p = new OpenAICompatibleProvider({

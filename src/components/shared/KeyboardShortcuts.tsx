@@ -14,7 +14,11 @@ import { useEffect } from 'react';
 import { useReaderStore } from '@/stores/readerStore';
 import { useTimelineStore } from '@/stores/timelineStore';
 import { useConfigStore } from '@/stores/configStore';
-import { matchShortcut, isInTextInput } from '@/lib/keyboard-shortcuts';
+import {
+  isPlainArrowNavigation,
+  matchShortcut,
+  shouldHandleReaderShortcut,
+} from '@/lib/keyboard-shortcuts';
 
 export function KeyboardShortcuts() {
   const chapters = useReaderStore(s => s.chapters);
@@ -31,20 +35,26 @@ export function KeyboardShortcuts() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!shouldHandleReaderShortcut(e)) return;
+
       if (matchShortcut('meta+b', e)) {
         e.preventDefault();
-        setTimelineOpen(!timelineOpen);
+        const nextOpen = !timelineOpen;
+        if (nextOpen) setSidebarOpen(false);
+        setTimelineOpen(nextOpen);
       } else if (matchShortcut('meta+shift+s', e)) {
         e.preventDefault();
-        setSidebarOpen(!sidebarOpen);
+        const nextOpen = !sidebarOpen;
+        if (nextOpen) setTimelineOpen(false);
+        setSidebarOpen(nextOpen);
       } else if (matchShortcut('meta+d', e)) {
         e.preventDefault();
         const nextMode = theme.mode === 'dark' ? 'light' : 'dark';
         void setTheme({ ...theme, mode: nextMode });
-      } else if (e.key === 'ArrowLeft' && !isInTextInput(e)) {
+      } else if (isPlainArrowNavigation(e) && e.key === 'ArrowLeft') {
         const idx = chapters.findIndex(c => c.id === currentChapterId);
         if (idx > 0) setChapter(chapters[idx - 1].id);
-      } else if (e.key === 'ArrowRight' && !isInTextInput(e)) {
+      } else if (isPlainArrowNavigation(e) && e.key === 'ArrowRight') {
         const idx = chapters.findIndex(c => c.id === currentChapterId);
         if (idx >= 0 && idx < chapters.length - 1) {
           setChapter(chapters[idx + 1].id);

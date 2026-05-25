@@ -18,6 +18,12 @@ export type TaskType = 'translate' | 'explain' | 'verify' | 'summarize' | 'chat'
 /** Coarse language detection used to route prompts. */
 export type Language = 'zh' | 'en' | 'mixed';
 
+/** User-created reading mark types. */
+export type AnnotationType = 'highlight' | 'note';
+
+/** Semantic highlight colors used in reading and export workflows. */
+export type HighlightColor = 'important' | 'question' | 'insight' | 'todo';
+
 /** AI's self-reported confidence on a verify result. */
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -36,6 +42,8 @@ export interface Book {
   totalChapters: number;
   uploadedAt: Date;
   lastReadAt?: Date;
+  /** Soft-hide from the default library view without deleting reading data. */
+  archivedAt?: Date;
   language: Language;
   fileBlob?: Blob;
 }
@@ -69,6 +77,60 @@ export interface ChapterSummary {
   modelUsed: string;
 }
 
+/**
+ * A durable anchor into chapter text. Offsets are character offsets within
+ * `Chapter.content`; `quote` stores the selected text for drift detection.
+ */
+export interface TextAnchor {
+  start: number;
+  end: number;
+  quote: string;
+  page?: number;
+}
+
+/**
+ * User-created reading markup. This is separate from TimelineEntry so manual
+ * reading intent can exist without an AI call, while still sharing the same
+ * text-anchor model for future jump-back and export.
+ */
+export interface Annotation {
+  id: string;
+  bookId: string;
+  chapterId: string;
+  type: AnnotationType;
+  anchor: TextAnchor;
+  color: HighlightColor;
+  note?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Durable reading position for one book. `chapterProgress` is the current
+ * chapter's vertical scroll ratio; `overallProgress` rolls that into the
+ * whole-book chapter count for library and continue-reading UI.
+ */
+export interface ReadingProgress {
+  bookId: string;
+  chapterId: string;
+  chapterOrderIndex: number;
+  chapterTitle: string;
+  totalChapters: number;
+  chapterProgress: number;
+  overallProgress: number;
+  updatedAt: Date;
+}
+
+/** A contiguous slice of active reading time captured in the reader. */
+export interface ReadingSession {
+  id: string;
+  bookId: string;
+  chapterId: string;
+  startedAt: Date;
+  endedAt: Date;
+  durationMs: number;
+}
+
 /** Cited source returned by a verify call. */
 export interface SourceRef {
   url: string;
@@ -93,6 +155,8 @@ export interface TimelineEntry {
   type: TaskType;
   /** The exact passage the user selected. Empty string for chapter-level ops. */
   originalText: string;
+  /** Stable source anchor for jump-back when this entry came from a selection. */
+  anchor?: TextAnchor;
   page?: number;
   /** User's follow-up question (chat) or empty for single-shot ops. */
   userInput?: string;

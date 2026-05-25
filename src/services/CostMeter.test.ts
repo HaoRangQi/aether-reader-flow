@@ -21,6 +21,15 @@ describe('CostMeter', () => {
     );
   });
 
+  it('rejects invalid token counts when estimating USD', () => {
+    const invalidTokenCounts = [-1, Number.NaN, Number.POSITIVE_INFINITY];
+
+    for (const value of invalidTokenCounts) {
+      expect(() => meter.estimateUSD('claude-sonnet-4-6', value, 0)).toThrow(RangeError);
+      expect(() => meter.estimateUSD('claude-sonnet-4-6', 0, value)).toThrow(RangeError);
+    }
+  });
+
   it('records a cost entry with auto id + timestamp', async () => {
     await meter.record({
       model: 'claude-sonnet-4-6',
@@ -30,6 +39,69 @@ describe('CostMeter', () => {
     });
     const total = await meter.totalToday();
     expect(total).toBeCloseTo(0.01, 6);
+  });
+
+  it('rejects invalid cost records without changing totals', async () => {
+    await expect(
+      meter.record({
+        model: 'claude-sonnet-4-6',
+        tokens: { input: -1, output: 500 },
+        amountUSD: 0.01,
+        taskType: 'chat',
+      }),
+    ).rejects.toThrow(RangeError);
+
+    await expect(
+      meter.record({
+        model: 'claude-sonnet-4-6',
+        tokens: { input: 1000, output: Number.POSITIVE_INFINITY },
+        amountUSD: 0.01,
+        taskType: 'chat',
+      }),
+    ).rejects.toThrow(RangeError);
+
+    await expect(
+      meter.record({
+        model: 'claude-sonnet-4-6',
+        tokens: { input: 1000, output: 500 },
+        amountUSD: Number.NaN,
+        taskType: 'chat',
+      }),
+    ).rejects.toThrow(RangeError);
+
+    await expect(
+      meter.record({
+        model: 'claude-sonnet-4-6',
+        tokens: { input: 1000, output: 500 },
+        amountUSD: 0.01,
+        taskType: 'chat',
+        timestamp: new Date(Number.NaN),
+      }),
+    ).rejects.toThrow(RangeError);
+
+    expect(await meter.totalToday()).toBe(0);
+  });
+
+  it('rejects malformed token usage without changing totals', async () => {
+    const malformedRecords = [
+      { tokens: undefined },
+      { tokens: null },
+      { tokens: { input: '1000', output: 500 } },
+      { tokens: { input: 1000 } },
+    ];
+
+    for (const record of malformedRecords) {
+      await expect(
+        meter.record({
+          model: 'claude-sonnet-4-6',
+          tokens: record.tokens,
+          amountUSD: 0.01,
+          taskType: 'chat',
+        } as unknown as Parameters<CostMeter['record']>[0]),
+      ).rejects.toThrow(RangeError);
+    }
+
+    expect(await meter.totalToday()).toBe(0);
   });
 
   it('totalToday sums only today', async () => {
@@ -81,6 +153,14 @@ describe('CostMeter', () => {
   it('usdToCNY uses fixed 7.2 rate', () => {
     expect(CostMeter.usdToCNY(1)).toBeCloseTo(7.2);
     expect(CostMeter.usdToCNY(10)).toBeCloseTo(72);
+  });
+
+  it('normalizes non-displayable CNY values', () => {
+    expect(CostMeter.usdToCNY(-0)).toBe(0);
+    expect(CostMeter.usdToCNY(-1)).toBe(0);
+    expect(CostMeter.usdToCNY(Number.NaN)).toBe(0);
+    expect(CostMeter.usdToCNY(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(CostMeter.usdToCNY(Number.MAX_VALUE)).toBe(Number.MAX_SAFE_INTEGER);
   });
 });
 

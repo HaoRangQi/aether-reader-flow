@@ -21,20 +21,38 @@ export function buildProvider(
   apiKey: string,
   withWebSearch = false,
 ): ModelProvider {
-  if (service.protocol === 'anthropic') {
-    return withWebSearch
-      ? new AnthropicWebSearchProvider({ id: service.id, baseUrl: service.baseUrl, apiKey })
-      : new AnthropicProvider({ id: service.id, baseUrl: service.baseUrl, apiKey });
+  if (!service.enabled) {
+    throw new Error(`Model service is disabled: ${service.id}`);
   }
-  if (service.protocol === 'openai') {
-    // OpenAI-compat protocol does not (yet) have a uniform web-search
-    // story across vendors. We pass through; the caller's prompt is on
-    // its own to mention "you don't have web search" if necessary.
-    return new OpenAICompatibleProvider({
-      id: service.id,
-      baseUrl: service.baseUrl,
-      apiKey,
-    });
+
+  const normalizedApiKey = apiKey.trim();
+  if (!normalizedApiKey) {
+    throw new Error(`Model service API key is required: ${service.id}`);
   }
-  throw new Error(`Unknown provider protocol: ${service.protocol satisfies never}`);
+
+  switch (service.protocol) {
+    case 'anthropic':
+      return withWebSearch
+        ? new AnthropicWebSearchProvider({
+            id: service.id,
+            baseUrl: service.baseUrl,
+            apiKey: normalizedApiKey,
+          })
+        : new AnthropicProvider({
+            id: service.id,
+            baseUrl: service.baseUrl,
+            apiKey: normalizedApiKey,
+          });
+    case 'openai':
+      // OpenAI-compat protocol does not (yet) have a uniform web-search
+      // story across vendors. We pass through; the caller's prompt is on
+      // its own to mention "you don't have web search" if necessary.
+      return new OpenAICompatibleProvider({
+        id: service.id,
+        baseUrl: service.baseUrl,
+        apiKey: normalizedApiKey,
+      });
+    default:
+      throw new Error(`Unknown provider protocol for service: ${service.id}`);
+  }
 }

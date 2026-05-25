@@ -9,63 +9,70 @@ export async function checkStorageHealth(): Promise<{
   databases: string[];
   error?: string;
 }> {
-  try {
-    // Check if IndexedDB is available
-    if (!('indexedDB' in window)) {
-      return {
-        available: false,
-        persistent: false,
-        quota: null,
-        databases: [],
-        error: 'IndexedDB not available',
-      };
-    }
-
-    // Check persistence
-    let persistent = false;
-    if (navigator.storage && navigator.storage.persist) {
-      persistent = await navigator.storage.persisted();
-    }
-
-    // Check quota
-    let quota = null;
-    if (navigator.storage && navigator.storage.estimate) {
-      const estimate = await navigator.storage.estimate();
-      quota = {
-        usage: estimate.usage || 0,
-        quota: estimate.quota || 0,
-      };
-    }
-
-    // List databases
-    let databases: string[] = [];
-    if ('databases' in indexedDB) {
-      const dbs = await indexedDB.databases();
-      databases = dbs.map(db => db.name || 'unknown');
-    }
-
-    return {
-      available: true,
-      persistent,
-      quota,
-      databases,
-    };
-  } catch (e) {
+  if (typeof window === 'undefined' || !('indexedDB' in window) || !window.indexedDB) {
     return {
       available: false,
       persistent: false,
       quota: null,
       databases: [],
-      error: e instanceof Error ? e.message : String(e),
+      error: 'IndexedDB not available',
     };
   }
+
+  const errors: string[] = [];
+  const storage = navigator.storage;
+  let persistent = false;
+  let quota: { usage: number; quota: number } | null = null;
+  let databases: string[] = [];
+
+  if (storage?.persisted) {
+    try {
+      persistent = await storage.persisted();
+    } catch (error) {
+      errors.push(`Storage persistence check failed: ${formatStorageError(error)}`);
+    }
+  }
+
+  if (storage?.estimate) {
+    try {
+      const estimate = await storage.estimate();
+      quota = {
+        usage: normalizeStorageBytes(estimate.usage),
+        quota: normalizeStorageBytes(estimate.quota),
+      };
+    } catch (error) {
+      errors.push(`Storage quota check failed: ${formatStorageError(error)}`);
+    }
+  }
+
+  if ('databases' in window.indexedDB && typeof window.indexedDB.databases === 'function') {
+    try {
+      const dbs = await window.indexedDB.databases();
+      databases = dbs.map(db => db.name || 'unknown');
+    } catch (error) {
+      errors.push(`IndexedDB database listing failed: ${formatStorageError(error)}`);
+    }
+  }
+
+  return {
+    available: true,
+    persistent,
+    quota,
+    databases,
+    error: errors.length > 0 ? errors.join('；') : undefined,
+  };
 }
 
 export async function requestPersistence(): Promise<boolean> {
-  if (!navigator.storage || !navigator.storage.persist) {
+  if (typeof navigator === 'undefined' || !navigator.storage?.persist) {
     return false;
   }
-  return await navigator.storage.persist();
+
+  try {
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
 }
 
 export function logStorageHealth(): void {
@@ -84,4 +91,12 @@ export function logStorageHealth(): void {
     }
     console.groupEnd();
   });
+}
+
+function normalizeStorageBytes(value: number | undefined): number {
+  return Number.isFinite(value) && value! > 0 ? value! : 0;
+}
+
+function formatStorageError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

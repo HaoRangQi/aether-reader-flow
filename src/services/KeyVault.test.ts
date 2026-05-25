@@ -4,6 +4,7 @@ import { IndexedDBModelServiceRepo } from '@/adapters/storage/IndexedDBModelServ
 import { CryptoService } from './CryptoService';
 import { KeyVault, _resetKeyVaultForTests } from './KeyVault';
 import type { ModelService } from '@/types/domain';
+import type { ModelServiceRepo } from '@/adapters/storage/interfaces';
 
 const seedService = async (
   repo: IndexedDBModelServiceRepo,
@@ -32,6 +33,7 @@ describe('KeyVault', () => {
   beforeEach(async () => {
     await resetDb();
     _resetKeyVaultForTests();
+    window.sessionStorage.clear();
     repo = new IndexedDBModelServiceRepo();
     vault = new KeyVault(repo);
   });
@@ -70,6 +72,18 @@ describe('KeyVault', () => {
     await expect(vault.getApiKey('s1')).rejects.toThrow();
   });
 
+  it('rejects decrypted blank API keys without caching them', async () => {
+    await seedService(repo, 'master', '   ');
+    vault.unlock('master');
+
+    await expect(vault.getApiKey('s1')).rejects.toThrow(/no API key configured/i);
+
+    await repo.update('s1', {
+      apiKeyCipher: await new CryptoService().encrypt('sk-restored', 'master'),
+    });
+    await expect(vault.getApiKey('s1')).resolves.toBe('sk-restored');
+  });
+
   it('lock() clears cache and password', async () => {
     await seedService(repo, 'master', 'sk-secret');
     vault.unlock('master');
@@ -77,6 +91,29 @@ describe('KeyVault', () => {
     vault.lock();
     expect(vault.unlocked).toBe(false);
     await expect(vault.getApiKey('s1')).rejects.toThrow(/locked/i);
+  });
+
+  it('does not return or cache a stale key when re-unlocked during an in-flight lookup', async () => {
+    const svc = await seedService(repo, 'master', 'sk-secret');
+    let resolveGet: (service: ModelService | null) => void = () => {};
+    const pendingGet = new Promise<ModelService | null>((resolve) => {
+      resolveGet = resolve;
+    });
+    const slowRepo: ModelServiceRepo = {
+      create: async () => {},
+      get: async () => pendingGet,
+      list: async () => [],
+      update: async () => {},
+      delete: async () => {},
+    };
+    const slowVault = new KeyVault(slowRepo);
+
+    slowVault.unlock('master');
+    const apiKey = slowVault.getApiKey('s1');
+    slowVault.unlock('master');
+    resolveGet(svc);
+
+    await expect(apiKey).rejects.toThrow(/locked/i);
   });
 
   it('encryptForStorage round-trips with current password', async () => {
@@ -88,5 +125,33 @@ describe('KeyVault', () => {
 
   it('encryptForStorage throws when locked', async () => {
     await expect(vault.encryptForStorage('x')).rejects.toThrow(/locked/i);
+  });
+
+  it('encryptForStorage rejects blank API keys', async () => {
+    vault.unlock('master');
+    await expect(vault.encryptForStorage('  \n\t')).rejects.toThrow(
+      /no API key configured/i,
+    );
+  });
+
+  it('restores unlocked state from sessionStorage after creating a new vault instance', async () => {
+    await seedService(repo, 'master', 'sk-secret');
+
+    vault.unlock('master');
+
+    const nextVault = new KeyVault(repo);
+    expect(nextVault.unlocked).toBe(true);
+    await expect(nextVault.getApiKey('s1')).resolves.toBe('sk-secret');
+  });
+
+  it('lock clears sessionStorage so a new instance starts locked', async () => {
+    vault.unlock('master');
+    expect(window.sessionStorage.getItem('aether:key-vault:master-password')).toBe('master');
+
+    vault.lock();
+    expect(window.sessionStorage.getItem('aether:key-vault:master-password')).toBeNull();
+
+    const nextVault = new KeyVault(repo);
+    expect(nextVault.unlocked).toBe(false);
   });
 });

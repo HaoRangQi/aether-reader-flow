@@ -56,19 +56,31 @@ const UNKNOWN_MODEL_PRICING: ModelPricing = {
   estimated: true,
 };
 
+const KNOWN_MODEL_IDS = Object.keys(TABLE).sort();
+
+function copyPricing(pricing: ModelPricing): ModelPricing {
+  return { ...pricing };
+}
+
 /**
  * Look up pricing for a model id. Always returns something — falls back
- * to `UNKNOWN_MODEL_PRICING` for unrecognized models.
+ * to `UNKNOWN_MODEL_PRICING` for unrecognized or malformed models.
  *
  * Lookup is case-insensitive on the model id (some providers send
  * mixed-case ids).
  */
-export function getPricing(modelId: string): ModelPricing {
-  const k = modelId.toLowerCase();
+export function getPricing(modelId: unknown): ModelPricing {
+  const k = normalizeModelId(modelId);
+  if (!k) return copyPricing(UNKNOWN_MODEL_PRICING);
+
   for (const [tableKey, value] of Object.entries(TABLE)) {
-    if (tableKey.toLowerCase() === k) return value;
+    if (tableKey.toLowerCase() === k) return copyPricing(value);
   }
-  return UNKNOWN_MODEL_PRICING;
+  return copyPricing(UNKNOWN_MODEL_PRICING);
+}
+
+function normalizeModelId(modelId: unknown): string {
+  return typeof modelId === 'string' ? modelId.trim().toLowerCase() : '';
 }
 
 /**
@@ -76,5 +88,5 @@ export function getPricing(modelId: string): ModelPricing {
  * Settings UI to help users pick from the "known" set first.
  */
 export function listKnownModels(): string[] {
-  return Object.keys(TABLE);
+  return [...KNOWN_MODEL_IDS];
 }

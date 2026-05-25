@@ -7,7 +7,7 @@
  *   - detectChapters() → Chapter[]
  *   - persist book + chapters
  *
- * Adding a new format (TXT, web URL, …) means writing one new `DocumentParser`
+ * Adding a new format (web URL, …) means writing one new `DocumentParser`
  * impl and registering it in the parser map at construction. No business
  * code changes.
  */
@@ -20,13 +20,14 @@ import { detectChapters } from '@/lib/chapter-detect';
 const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 
 /**
- * Supported input formats. Keep this list and `pickParser()` in sync.
+ * Supported input formats. Keep this list and `detectFormat()` in sync.
  */
-export type SupportedFormat = 'pdf' | 'epub';
+export type SupportedFormat = 'pdf' | 'epub' | 'txt';
 
 export interface ParserRegistry {
   pdf?: DocumentParser;
   epub?: DocumentParser;
+  txt?: DocumentParser;
 }
 
 /**
@@ -46,6 +47,20 @@ function stripExt(name: string): string {
   return name.replace(/\.[^/.]+$/, '');
 }
 
+function normalizeMetadataText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function normalizeBookTitle(metadataTitle: unknown, fileName: string): string {
+  const title = normalizeMetadataText(metadataTitle);
+  if (title) return title;
+
+  const fromFile = stripExt(fileName).trim();
+  return fromFile || '未命名书籍';
+}
+
 /**
  * Detect format from file metadata. MIME type wins when present, falls back
  * to filename extension. Returns `null` if we don't recognize it.
@@ -54,9 +69,11 @@ export function detectFormat(file: Blob, fileName: string): SupportedFormat | nu
   const mime = (file.type || '').toLowerCase();
   if (mime.includes('pdf')) return 'pdf';
   if (mime.includes('epub')) return 'epub';
+  if (mime.startsWith('text/plain')) return 'txt';
   const ext = fileName.toLowerCase().match(/\.([^.]+)$/)?.[1] ?? '';
   if (ext === 'pdf') return 'pdf';
   if (ext === 'epub') return 'epub';
+  if (ext === 'txt') return 'txt';
   return null;
 }
 
@@ -75,7 +92,7 @@ export class BookService {
     const format = detectFormat(file, fileName);
     if (!format) {
       throw new Error(
-        '只支持 PDF 与 EPUB 文件。请检查文件后缀或导出格式。',
+        '只支持 PDF、EPUB 与 TXT 文件。请检查文件后缀或导出格式。',
       );
     }
     const parser = this.parsers[format];
@@ -96,15 +113,20 @@ export class BookService {
 
     const book = await this.books.create({
       id: bookId,
-      title: parsed.metadata.title ?? stripExt(fileName),
-      author: parsed.metadata.author,
+      title: normalizeBookTitle(parsed.metadata.title, fileName),
+      author: normalizeMetadataText(parsed.metadata.author),
       fileName,
       totalPages: parsed.totalPages,
       totalChapters: detected.chapters.length,
       language,
       fileBlob: file,
     });
-    await this.chapters.bulkCreate(detected.chapters);
+    try {
+      await this.chapters.bulkCreate(detected.chapters);
+    } catch (error) {
+      await this.books.delete(book.id);
+      throw error;
+    }
     return book;
   }
 }

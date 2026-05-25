@@ -102,6 +102,114 @@ describe('EpubParser', () => {
     expect(result.outline[1]).toEqual({ title: '第二章 宽信用', pageNumber: 2 });
   });
 
+  it('keeps outline page numbers aligned when skipped spine entries are missing hrefs or files', async () => {
+    const blob = await buildSampleEpub();
+    const zip = await JSZip.loadAsync(blob);
+    zip.file(
+      'OEBPS/content.opf',
+      `<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>跳页测试</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chap1" href="chap1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="missing-file" href="missing.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chap2" href="chap2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chap1"/>
+    <itemref idref="missing-href"/>
+    <itemref idref="missing-file"/>
+    <itemref idref="chap2"/>
+  </spine>
+</package>`,
+    );
+    const reBlob = new Blob([await zip.generateAsync({ type: 'blob' })], {
+      type: 'application/epub+zip',
+    });
+
+    const parser = new EpubParser();
+    const result = await parser.parse(reBlob);
+
+    expect(result.totalPages).toBe(2);
+    expect(result.outline).toEqual([
+      { title: '第一章 引子', pageNumber: 1 },
+      { title: '第二章 宽信用', pageNumber: 2 },
+    ]);
+  });
+
+  it('resolves relative hrefs after removing fragments and decoding percent escapes', async () => {
+    const zip = new JSZip();
+    zip.file('mimetype', 'application/epub+zip');
+    zip.file(
+      'META-INF/container.xml',
+      `<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/package/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`,
+    );
+    zip.file(
+      'OEBPS/package/content.opf',
+      `<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>路径测试</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chap1" href="../Text/Chapter%201.xhtml#section-2" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chap1"/>
+  </spine>
+</package>`,
+    );
+    zip.file(
+      'OEBPS/Text/Chapter 1.xhtml',
+      `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body><h1>编码章节</h1><p>带空格路径的正文</p></body></html>`,
+    );
+    const blob = new Blob([await zip.generateAsync({ type: 'blob' })], {
+      type: 'application/epub+zip',
+    });
+
+    const parser = new EpubParser();
+    const result = await parser.parse(blob);
+
+    expect(result.totalPages).toBe(1);
+    expect(result.pageTexts[0]).toContain('带空格路径的正文');
+    expect(result.outline).toEqual([{ title: '编码章节', pageNumber: 1 }]);
+  });
+
+  it('rejects when no readable spine content can be found', async () => {
+    const blob = await buildSampleEpub();
+    const zip = await JSZip.loadAsync(blob);
+    zip.file(
+      'OEBPS/content.opf',
+      `<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>空 spine</dc:title>
+  </metadata>
+  <manifest>
+    <item id="missing" href="missing.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="missing"/>
+    <itemref idref="missing-href"/>
+  </spine>
+</package>`,
+    );
+    const reBlob = new Blob([await zip.generateAsync({ type: 'blob' })], {
+      type: 'application/epub+zip',
+    });
+
+    const parser = new EpubParser();
+
+    await expect(parser.parse(reBlob)).rejects.toThrow(/no readable spine content/i);
+  });
+
   it('falls back gracefully when chapter has no <h1>', async () => {
     const blob = await buildSampleEpub({
       chapters: [

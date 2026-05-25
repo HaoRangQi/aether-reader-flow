@@ -1,8 +1,8 @@
 /**
  * @fileoverview Adapter interface for PDF/EPUB/TXT parsers.
  *
- * P1 ships only `PdfParser`. EPUB and TXT parsers conforming to this
- * interface can be added in future phases without touching `BookService`.
+ * PDF, EPUB, and TXT parsers conform to this interface. Future formats can
+ * be added without changing reader-facing components.
  */
 
 export interface ParsedOutlineItem {

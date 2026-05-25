@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "public/**/*.min.js",
     "public/**/*.min.mjs",
     "node_modules/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 

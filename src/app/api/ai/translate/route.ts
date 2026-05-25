@@ -13,17 +13,19 @@ import {
 
 interface TranslateBody {
   text: string;
+  systemPromptOverride?: string;
 }
 
 export async function POST(req: NextRequest) {
   const parsed = await readAIEnvelope<TranslateBody>(req);
   if ('error' in parsed) return parsed.error;
-  const { env, text } = parsed as { env: AIRouteRequest } & TranslateBody;
+  const { env, text, systemPromptOverride } = parsed as { env: AIRouteRequest } & TranslateBody;
   if (typeof text !== 'string' || !text.trim()) {
     return new Response('Missing text', { status: 400 });
   }
 
-  const { system, user } = buildTranslatePrompt({ text });
+  const { system: defaultSystem, user } = buildTranslatePrompt({ text });
+  const system = systemPromptOverride?.trim() || defaultSystem;
   const provider = providerFromEnvelope(env);
   return streamChunks(
     provider.chat({

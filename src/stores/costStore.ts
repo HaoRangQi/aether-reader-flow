@@ -18,6 +18,10 @@ interface CostState {
 
 const meter = new CostMeter(new IndexedDBCostRepo());
 
+function normalizeCostTotal(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 export const useCostStore = create<CostState>(set => ({
   todayUSD: 0,
   monthUSD: 0,
@@ -26,6 +30,13 @@ export const useCostStore = create<CostState>(set => ({
       meter.totalToday(),
       meter.totalThisMonth(),
     ]);
-    set({ todayUSD, monthUSD });
+    set({
+      todayUSD: normalizeCostTotal(todayUSD),
+      monthUSD: normalizeCostTotal(monthUSD),
+    });
   },
 }));
+
+export function _resetCostStoreForTests(): void {
+  useCostStore.setState({ todayUSD: 0, monthUSD: 0 });
+}

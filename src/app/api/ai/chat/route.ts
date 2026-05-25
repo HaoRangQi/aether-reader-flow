@@ -12,20 +12,25 @@ import type { TaskType } from '@/types/domain';
 interface ChatBody {
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
   anchor?: { originalText: string; type: TaskType };
+  memorySummary?: string;
+  systemPromptOverride?: string;
 }
 
 export async function POST(req: NextRequest) {
   const parsed = await readAIEnvelope<ChatBody>(req);
   if ('error' in parsed) return parsed.error;
-  const { env, history, anchor } = parsed as { env: AIRouteRequest } & ChatBody;
+  const { env, history, anchor, memorySummary, systemPromptOverride } =
+    parsed as { env: AIRouteRequest } & ChatBody;
   if (!Array.isArray(history) || history.length === 0) {
     return new Response('Missing history', { status: 400 });
   }
 
-  const system = buildChatSystemPrompt({
+  const defaultSystem = buildChatSystemPrompt({
     anchorText: anchor?.originalText,
     anchorType: anchor?.type,
+    memorySummary,
   });
+  const system = systemPromptOverride?.trim() || defaultSystem;
 
   const provider = providerFromEnvelope(env);
   return streamChunks(

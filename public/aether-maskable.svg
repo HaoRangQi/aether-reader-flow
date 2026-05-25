@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Aether Reader Flow">
+  <rect width="512" height="512" fill="#C8783F"/>
+  <circle cx="256" cy="256" r="168" fill="#FAF8F4" opacity="0.14"/>
+  <path d="M151 371L238 132h40l83 239h-45l-18-56h-84l-18 56h-45zm75-93h60l-29-91h-2l-29 91z" fill="#FFFFFF"/>
+  <path d="M139 405h234" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" opacity="0.72"/>
+</svg>

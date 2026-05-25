@@ -45,13 +45,19 @@ const zh = {
   'library.export': '导出',
   'library.back': '返回书架',
   'library.settings': '设置',
+  'library.reading.at': '读到 {chapter}',
+  'library.reading.recent': '最近阅读 {time}',
+  'time.justNow': '刚刚',
+  'time.minutesAgo': '{count} 分钟前',
+  'time.hoursAgo': '{count} 小时前',
+  'time.daysAgo': '{count} 天前',
 
   // Upload dialog
   'upload.title': '上传书籍',
   'upload.description':
-    '支持 PDF 与 EPUB。EPUB 章节结构基于 spine 自动识别，效果通常优于 PDF。',
-  'upload.dropzone': '点击选择文件，或拖拽到这里',
-  'upload.formats': '.pdf · .epub · 最大 500MB',
+    '支持 PDF、EPUB 与 TXT。EPUB 章节结构基于 spine 自动识别，效果通常优于 PDF。',
+  'upload.dropzone': '点击选择文件，或拖拽多个文件到这里',
+  'upload.formats': '.pdf · .epub · .txt · 最大 500MB',
   'upload.close': '关闭',
   'upload.parsing': '正在解析',
   'upload.done': '完成',
@@ -59,7 +65,7 @@ const zh = {
   'upload.error.unrecognized': '无法识别这个文件',
   'upload.error.tooLarge': '文件超出 {limit} MB 限制（当前 {size} MB）',
   'upload.error.unsupported':
-    '暂不支持「{name}」。当前仅接受 PDF (.pdf) 与 EPUB (.epub)',
+    '暂不支持「{name}」。当前仅接受 PDF (.pdf)、EPUB (.epub) 与 TXT (.txt)',
   'upload.failed': '上传失败',
 
   // Reader
@@ -135,6 +141,21 @@ const zh = {
   'settings.section.font': '阅读偏好',
   'settings.section.language': '语言',
   'settings.section.storage': '存储状态',
+  'settings.section.selection': '划词气泡',
+  'settings.section.prompts': '提示词',
+
+  'settings.selection.title': '划词气泡',
+  'settings.selection.description': '控制划词气泡和 AI 结果面板的外观。颜色留空则跟随当前主题。',
+  'settings.selection.bubbleBg': '气泡背景色',
+  'settings.selection.bubbleText': '气泡文字色',
+  'settings.selection.bubbleAccent': '按钮强调色',
+  'settings.selection.resultWidth': 'AI 结果面板宽度',
+  'settings.selection.resultWidth.compact': '紧凑（280px）',
+  'settings.selection.resultWidth.normal': '标准（400px）',
+  'settings.selection.resultWidth.wide': '宽屏（560px）',
+  'settings.selection.colorPlaceholder': '留空跟随主题',
+  'settings.selection.reset': '恢复默认',
+  'settings.selection.saved': '✓ 已保存',
 
   'settings.language.title': '语言',
   'settings.language.description':
@@ -183,13 +204,19 @@ const en: Dict = {
   'library.export': 'Export',
   'library.back': '← Library',
   'library.settings': 'Settings',
+  'library.reading.at': 'At {chapter}',
+  'library.reading.recent': 'Read {time}',
+  'time.justNow': 'just now',
+  'time.minutesAgo': '{count} min ago',
+  'time.hoursAgo': '{count} hr ago',
+  'time.daysAgo': '{count} days ago',
 
   // Upload dialog
   'upload.title': 'Upload a book',
   'upload.description':
-    'Accepts PDF and EPUB. EPUB chapter structure is detected automatically from the spine; typically better than PDF.',
-  'upload.dropzone': 'Click to choose a file, or drag one here',
-  'upload.formats': '.pdf · .epub · max 500MB',
+    'Accepts PDF, EPUB, and TXT. EPUB chapter structure is detected automatically from the spine; typically better than PDF.',
+  'upload.dropzone': 'Click to choose files, or drag multiple files here',
+  'upload.formats': '.pdf · .epub · .txt · max 500MB',
   'upload.close': 'Close',
   'upload.parsing': 'Parsing',
   'upload.done': 'Done',
@@ -197,7 +224,7 @@ const en: Dict = {
   'upload.error.unrecognized': 'Cannot recognize this file',
   'upload.error.tooLarge': 'File exceeds {limit} MB limit (got {size} MB)',
   'upload.error.unsupported':
-    'Unsupported file "{name}". Only PDF (.pdf) and EPUB (.epub) are accepted.',
+    'Unsupported file "{name}". Only PDF (.pdf), EPUB (.epub), and TXT (.txt) are accepted.',
   'upload.failed': 'Upload failed',
 
   // Reader
@@ -273,6 +300,21 @@ const en: Dict = {
   'settings.section.font': 'Reading',
   'settings.section.language': 'Language',
   'settings.section.storage': 'Storage',
+  'settings.section.selection': 'Selection bubble',
+  'settings.section.prompts': 'Prompts',
+
+  'settings.selection.title': 'Selection bubble',
+  'settings.selection.description': 'Customize the selection bubble and AI result panel. Leave color fields empty to follow the active theme.',
+  'settings.selection.bubbleBg': 'Bubble background',
+  'settings.selection.bubbleText': 'Bubble text color',
+  'settings.selection.bubbleAccent': 'Button accent color',
+  'settings.selection.resultWidth': 'AI result panel width',
+  'settings.selection.resultWidth.compact': 'Compact (280px)',
+  'settings.selection.resultWidth.normal': 'Normal (400px)',
+  'settings.selection.resultWidth.wide': 'Wide (560px)',
+  'settings.selection.colorPlaceholder': 'Empty = follow theme',
+  'settings.selection.reset': 'Reset to defaults',
+  'settings.selection.saved': '✓ Saved',
 
   'settings.language.title': 'Language',
   'settings.language.description':
@@ -324,7 +366,8 @@ export function translate(
   key: TKey,
   params?: Record<string, string | number>,
 ): string {
-  const dict = DICTS[locale] ?? DICTS.zh;
+  const resolvedLocale = localeFromLanguageTag(locale) ?? 'zh';
+  const dict = DICTS[resolvedLocale];
   const tmpl = dict[key] ?? (key as string);
   if (!params) return tmpl;
   return tmpl.replace(/\{(\w+)\}/g, (_, name) => {
@@ -345,7 +388,21 @@ export function translate(
  */
 export function detectBrowserLocale(): Locale {
   if (typeof navigator === 'undefined') return 'zh';
-  const lang = (navigator.language || 'zh').toLowerCase();
-  if (lang.startsWith('zh')) return 'zh';
+  const languages = navigator.languages?.length
+    ? navigator.languages
+    : [navigator.language || 'zh'];
+  for (const lang of languages) {
+    const locale = localeFromLanguageTag(lang);
+    if (locale) return locale;
+  }
   return 'en';
+}
+
+function localeFromLanguageTag(tag: unknown): Locale | null {
+  if (typeof tag !== 'string') return null;
+  const normalized = tag.trim().toLowerCase().replace('_', '-');
+  if (!normalized) return null;
+  if (normalized.startsWith('zh')) return 'zh';
+  if (normalized.startsWith('en')) return 'en';
+  return null;
 }

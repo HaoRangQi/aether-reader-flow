@@ -53,8 +53,9 @@
   --font-sans: "Inter", "Source Han Sans SC", "Noto Sans SC", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
-  /* User-overridable typography (FontPreferences, P4 T4.6) */
-  --user-font-family: var(--font-serif);
+  /* User-overridable typography */
+  --reader-font-family: var(--font-serif);
+  --ui-font-family: var(--font-sans);
   --reader-font-size: 17px;
   --reader-line-height: 1.8;
 }
@@ -114,7 +115,7 @@ html,
 body {
   background-color: var(--color-background);
   color: var(--color-text);
-  font-family: var(--font-sans);
+  font-family: var(--ui-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

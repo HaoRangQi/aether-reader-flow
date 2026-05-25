@@ -2,7 +2,7 @@
 
 > 让你读懂一本书的 AI 辅助阅读 Web 应用。
 
-为深度阅读设计的「理解闭环引擎」。每一次划词、每一次提问、每一次验证 — 都被记录到你的思考文档里，可随时导出。
+为深度阅读设计的「理解闭环引擎」。每一次划词、每一次提问、每一次验证，都被记录到你的思考文档里，可随时导出。
 
 ## ✨ 核心能力
 
@@ -16,6 +16,30 @@
 ## 🎨 设计哲学
 
 **纸质阅读 + 玻璃工具** — 阅读区温润如纸、工具区悬浮如水镜。6 个预置主题包（羊皮纸 / 报刊 / 远海 / 莲青 / 枫丹 / 竹翠）含中国传统色，浅深双主题。
+
+## 🧭 产品定位
+
+`Aether Reader Flow` 的职责非常明确：**它是个人阅读理解入口，不是完整知识库。**
+
+它负责：
+
+- 在阅读当下闭合理解缺口
+- 帮你翻译、解释、验证、追问、总结
+- 把阅读过程留痕，并导出为干净材料
+
+它不负责：
+
+- 取代 Obsidian 成为长期知识容器
+- 承担重型写作、双链组织、图谱管理
+- 演变成全场景第二大脑
+
+如果你后续要把这些材料继续沉淀到知识库中，推荐分工是：
+
+- `Aether Reader Flow`：读懂
+- `Aether Note LLM`：找回过去的经验与记录
+- `Obsidian`：长期书写、组织、维护知识库
+
+详见 [`docs/product-matrix-positioning.md`](docs/product-matrix-positioning.md)。
 
 ## 🚀 快速开始
 
@@ -110,6 +134,17 @@ MVP 默认**不需要任何服务端环境变量** — API Key 由用户在设�
 
 完成后回到首页上传 PDF，开始读懂一本书。
 
+### 与 Obsidian 的关系
+
+`Aether Reader Flow` 的目标不是把“读、写、整理、检索”全部包进一个产品，而是把“读懂”这一段做到足够顺滑。
+
+典型工作流是：
+
+1. 在 `Aether Reader Flow` 中阅读、划词、验证、追问、生成时间轴
+2. 导出 Markdown / HTML
+3. 把结果放入 Obsidian 持续整理
+4. 通过 `Aether Note LLM` 在后续工作中检索和召回这些历史材料
+
 ## 🛠 技术栈
 
 - Next.js 16 App Router
@@ -128,7 +163,9 @@ MVP 默认**不需要任何服务端环境变量** — API Key 由用户在设�
 - `docs/superpowers/specs/2026-05-16-aether-reader-flow-design.md` — 完整 PRD（14 章）
 - `docs/superpowers/plans/2026-05-16-aether-reader-flow.md` — 实施计划（68 任务 / 5 Phase）
 - `docs/superpowers/plans/deviations.md` — 实施偏差记录（Next 16 / Tailwind v4 等）
+- `docs/product-matrix-positioning.md` — Aether 产品矩阵定位说明
 - `docs/ship-checklist.md` — MVP 上线核对清单
+- `docs/release-governance.md` — 大规模 WIP 下的分批提交与质量门指引
 - `AGENTS.md` — Next 16 兼容性提示
 
 ## 🔧 命令速查

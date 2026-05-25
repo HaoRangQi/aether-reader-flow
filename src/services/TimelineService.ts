@@ -26,9 +26,10 @@ export class TimelineService {
    */
   async listForBook(bookId: string, filter: TimelineFilter = {}): Promise<TimelineEntry[]> {
     const all = await this.repo.listByBook(bookId);
-    const sorted = all.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    const sorted = [...all].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    const chapterId = filter.chapterId?.trim();
     return sorted.filter(e => {
-      if (filter.chapterId && e.chapterId !== filter.chapterId) return false;
+      if (chapterId && e.chapterId !== chapterId) return false;
       if (filter.types && filter.types.length > 0 && !filter.types.includes(e.type)) return false;
       return true;
     });
@@ -38,9 +39,14 @@ export class TimelineService {
    * Case-insensitive substring search. Applied AFTER fetching everything
    * for the book; adequate for the few-hundred-entries-per-book scale.
    */
-  async search(bookId: string, query: string): Promise<TimelineEntry[]> {
-    const q = query.toLowerCase();
-    const all = await this.listForBook(bookId);
+  async search(
+    bookId: string,
+    query: string,
+    filter: TimelineFilter = {},
+  ): Promise<TimelineEntry[]> {
+    const q = query.trim().toLowerCase();
+    const all = await this.listForBook(bookId, filter);
+    if (!q) return all;
     return all.filter(
       e =>
         e.originalText.toLowerCase().includes(q) ||

@@ -165,12 +165,73 @@ export const THEMES: Theme[] = [
       'rgba(14,26,20,0.7)', 'rgba(255,255,255,0.08)', 'rgba(138,170,120,0.18)',
     ),
   },
+  {
+    id: 'sprout',
+    name: '豆芽绿',
+    light: mk(
+      '#E7F1DE', '#EDF4E6', '#F2F7ED',
+      '#1E2A1A', '#465844', '#6F7F6A',
+      '#52783D', '#456736', 'rgba(82,120,61,0.14)',
+      'rgba(30,42,26,0.08)', 'rgba(30,42,26,0.04)',
+      'rgba(231,241,222,0.88)', 'rgba(30,42,26,0.06)', 'rgba(82,120,61,0.08)',
+    ),
+    dark: mk(
+      '#0F180D', '#162214', '#1B2918',
+      '#D2E6C8', '#96B48D', '#688461',
+      '#74A85A', '#84B969', 'rgba(116,168,90,0.24)',
+      'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.04)',
+      'rgba(15,24,13,0.78)', 'rgba(255,255,255,0.08)', 'rgba(116,168,90,0.14)',
+    ),
+  },
 ];
 
 /**
- * Returns the named theme; falls back to sheepskin (the default) if the
- * caller hands us an unknown id. Never throws.
+ * Returns the named theme from built-ins or a custom list.
+ * Falls back to sheepskin if not found.
  */
-export function getTheme(id: string): Theme {
-  return THEMES.find(t => t.id === id) ?? THEMES[0];
+export function getTheme(id: unknown, customThemes: unknown = []): Theme {
+  const normalizedId = normalizeThemeId(id);
+  if (normalizedId === null) {
+    return THEMES[0];
+  }
+
+  return (
+    THEMES.find(t => normalizeThemeId(t.id) === normalizedId) ??
+    getValidCustomThemes(customThemes).find(t => normalizeThemeId(t.id) === normalizedId) ??
+    THEMES[0]
+  );
+}
+
+function normalizeThemeId(id: unknown): string | null {
+  if (typeof id !== 'string') {
+    return null;
+  }
+
+  const normalizedId = id.trim().toLowerCase();
+  return normalizedId === '' ? null : normalizedId;
+}
+
+function getValidCustomThemes(customThemes: unknown): Theme[] {
+  if (!Array.isArray(customThemes)) {
+    return [];
+  }
+
+  return customThemes.filter(isTheme);
+}
+
+function isTheme(theme: unknown): theme is Theme {
+  if (!isRecord(theme)) {
+    return false;
+  }
+
+  return (
+    typeof theme.id === 'string' &&
+    typeof theme.name === 'string' &&
+    isRecord(theme.light) &&
+    isRecord(theme.dark)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

@@ -20,6 +20,7 @@ import type {
 } from './types';
 import type { ChatChunk } from '@/types/api';
 import type { ModelInfo } from '@/types/domain';
+import { getPricing } from '@/lib/pricing';
 
 export interface OpenAICompatOptions {
   id: string;
@@ -83,37 +84,28 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        if (done) {
+          buffer += decoder.decode();
+        } else {
+          buffer += decoder.decode(value, { stream: true });
+        }
 
-        // SSE frames are separated by `\n\n`
-        let nlIdx;
-        while ((nlIdx = buffer.indexOf('\n\n')) !== -1) {
-          const frame = buffer.slice(0, nlIdx);
-          buffer = buffer.slice(nlIdx + 2);
+        const drained = drainSseFrames(buffer, done);
+        buffer = drained.remaining;
 
-          for (const line of frame.split('\n')) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data:')) continue;
-            const payload = trimmed.slice(5).trim();
-            if (payload === '[DONE]') continue;
+        for (const frame of drained.frames) {
+          const parsed = parseSseFrame(frame);
+          if (!parsed) continue;
 
-            let json: OpenAIStreamFrame;
-            try {
-              json = JSON.parse(payload) as OpenAIStreamFrame;
-            } catch {
-              continue;
-            }
+          if (parsed.delta) yield { type: 'text', text: parsed.delta };
 
-            const delta = json.choices?.[0]?.delta?.content;
-            if (delta) yield { type: 'text', text: delta };
-
-            if (json.usage) {
-              inputTokens = json.usage.prompt_tokens ?? inputTokens;
-              outputTokens = json.usage.completion_tokens ?? outputTokens;
-            }
+          if (parsed.usage) {
+            inputTokens = parsed.usage.prompt_tokens ?? inputTokens;
+            outputTokens = parsed.usage.completion_tokens ?? outputTokens;
           }
         }
+
+        if (done) break;
       }
 
       yield { type: 'usage', inputTokens, outputTokens };
@@ -161,7 +153,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
           // Conservative: assume web search is NOT supported on
           // OpenAI-compat endpoints; verify task should skip these.
           supportsWebSearch: false,
-          pricing: { input: 0, output: 0 },
+          pricing: getPricing(m.id),
         }));
     } catch {
       return [];
@@ -171,4 +163,54 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
 function toOpenAIMessage(m: ChatMessage): { role: string; content: string } {
   return { role: m.role, content: m.content };
+}
+
+function drainSseFrames(buffer: string, flush: boolean): { frames: string[]; remaining: string } {
+  const frames: string[] = [];
+  let remaining = buffer;
+
+  while (true) {
+    const lfIndex = remaining.indexOf('\n\n');
+    const crlfIndex = remaining.indexOf('\r\n\r\n');
+    const indexes = [lfIndex, crlfIndex].filter(index => index >= 0);
+    if (indexes.length === 0) break;
+
+    const frameEnd = Math.min(...indexes);
+    const separatorLength = frameEnd === crlfIndex ? 4 : 2;
+    frames.push(remaining.slice(0, frameEnd));
+    remaining = remaining.slice(frameEnd + separatorLength);
+  }
+
+  if (flush && remaining.trim()) {
+    frames.push(remaining);
+    remaining = '';
+  }
+
+  return { frames, remaining };
+}
+
+function parseSseFrame(frame: string): {
+  delta?: string;
+  usage?: OpenAIStreamFrame['usage'];
+} | null {
+  let parsed: OpenAIStreamFrame | null = null;
+
+  for (const line of frame.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const payload = trimmed.slice(5).trim();
+    if (payload === '[DONE]') return null;
+
+    try {
+      parsed = JSON.parse(payload) as OpenAIStreamFrame;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsed) return null;
+  return {
+    delta: parsed.choices?.[0]?.delta?.content,
+    usage: parsed.usage,
+  };
 }

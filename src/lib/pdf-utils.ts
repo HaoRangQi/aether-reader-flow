@@ -16,6 +16,11 @@ let configured = false;
  */
 export function configurePdfWorker(): void {
   if (configured) return;
+  if (pdfjs.GlobalWorkerOptions.workerSrc.trim()) {
+    configured = true;
+    return;
+  }
+
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
   configured = true;
 }

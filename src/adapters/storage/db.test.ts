@@ -6,17 +6,20 @@ describe('Dexie schema', () => {
     await resetDb();
   });
 
-  it('opens with the 7 expected tables', async () => {
+  it('opens with the 10 expected tables', async () => {
     const db = getDb();
     await db.open();
     const names = db.tables.map(t => t.name).sort();
     expect(names).toEqual([
+      'annotations',
       'books',
       'chapters',
       'configs',
       'costRecords',
       'modelServices',
       'pages',
+      'readingProgress',
+      'readingSessions',
       'timeline',
     ]);
   });
@@ -34,6 +37,12 @@ describe('Dexie schema', () => {
     });
     const book = await db.books.get('b1');
     expect(book?.title).toBe('示例书名');
+  });
+
+  it('indexes archivedAt on books', async () => {
+    const db = getDb();
+    await db.open();
+    expect(db.books.schema.indexes.map(index => index.name)).toContain('archivedAt');
   });
 
   it('uses the [bookId+orderIndex] compound index for chapters', async () => {

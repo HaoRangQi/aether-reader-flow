@@ -11,9 +11,13 @@
 - [ ] 章节总结：首次生成后写入 chapter.summaryCache，再次打开即时显示
 - [ ] 章节总结「重新生成」按钮跳过缓存
 - [ ] AI 侧栏多轮对话：Enter 发送 / Shift+Enter 换行 / 自动滚动到底
+- [ ] AI 对话按钮支持二次点击收起（toggle 开合）
+- [ ] AI 侧栏支持“新开会话”，且输入框可纵向拉高
 - [ ] AI 侧栏顶部 ModelSwitcher 可临时切换模型（仅本次会话，不改全局路由）
 - [ ] 时间轴面板：列表反向时序 / 章节筛选 / 类型 chip 多选 / 搜索原文+AI+用户输入
+- [ ] 章节总结以浮动层呈现（不依赖滚动到顶部）
 - [ ] BookCard 右上角下载图标 → ExportDialog
+- [ ] BookCard 图标按钮 hover/focus 有可见提示语（导出 / 归档 / 删除）
 - [ ] ExportDialog 可选 Markdown / HTML 与 全部 / 部分章节
 - [ ] Markdown 导出含层级（H1 书 / H2 章 / H3 条目）+ 时间 + 来源
 - [ ] HTML 导出离线可独立打开（含内联 CSS），所有 user/AI 文本经 XSS 转义
@@ -74,9 +78,9 @@
 
 ## 🧪 测试
 
-- [ ] npm test — 136/136 pass
-- [ ] npm run e2e — 至少 1 项 pass
-- [ ] npm run lint --max-warnings 0 — 0 / 0
+- [ ] npm test — 当前 RC 自动门：95 files / 709 tests pass
+- [ ] npm run e2e — 当前 RC 自动门：3 项 pass
+- [ ] npm run lint — 0 errors
 - [ ] npm run build — 干净
 - [ ] npx tsc --noEmit — 类型干净
 

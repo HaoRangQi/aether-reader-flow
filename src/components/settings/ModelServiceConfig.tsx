@@ -12,7 +12,7 @@
  * Form is `ModelServiceForm` (separate file).
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { IndexedDBModelServiceRepo } from '@/adapters/storage/IndexedDBModelServiceRepo';
 import type { ModelService } from '@/types/domain';
 import { ModelServiceForm } from './ModelServiceForm';
@@ -57,25 +57,51 @@ const PRESETS: Preset[] = [
   },
 ];
 
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : '未知错误');
+
 export function ModelServiceConfig() {
   const [services, setServices] = useState<ModelService[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingPreset, setAddingPreset] = useState<Preset | null>(null);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const reload = async () => {
-    setServices(await new IndexedDBModelServiceRepo().list());
-  };
+  const reload = useCallback(async (failurePrefix = '模型服务列表加载失败') => {
+    setLoadingServices(true);
+    try {
+      const nextServices = await new IndexedDBModelServiceRepo().list();
+      setServices(nextServices);
+      setServicesError(null);
+      return true;
+    } catch (error) {
+      setServicesError(`${failurePrefix}：${errorMessage(error)}。请重试。`);
+      return false;
+    } finally {
+      setLoadingServices(false);
+    }
+  }, []);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void reload();
-  }, []);
+  }, [reload]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDelete = async (id: string) => {
+    if (deletingId) return;
     if (!confirm('删除该模型服务？任务路由可能需要重新配置。')) return;
-    await new IndexedDBModelServiceRepo().delete(id);
-    void reload();
+    setDeleteError(null);
+    setDeletingId(id);
+    try {
+      await new IndexedDBModelServiceRepo().delete(id);
+      await reload('模型服务已删除，但刷新列表失败');
+    } catch (error) {
+      setDeleteError(`删除模型服务失败：${errorMessage(error)}。已保留当前服务和编辑内容。`);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -87,7 +113,28 @@ export function ModelServiceConfig() {
       </p>
 
       <h3 className="font-serif text-base mb-3">已配置</h3>
-      {services.length === 0 ? (
+      {servicesError && (
+        <div className="mb-4 text-sm border border-danger/30 text-danger rounded-md p-4" role="alert">
+          <div>{servicesError}</div>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="mt-3 text-sm text-accent hover:underline"
+          >
+            重试加载
+          </button>
+        </div>
+      )}
+      {deleteError && (
+        <div className="mb-4 text-sm border border-danger/30 text-danger rounded-md p-4" role="alert">
+          {deleteError}
+        </div>
+      )}
+      {loadingServices ? (
+        <div className="text-sm text-muted" role="status">
+          正在加载模型服务列表…
+        </div>
+      ) : services.length === 0 && !servicesError ? (
         <div className="text-sm text-subtle border border-dashed border-border rounded-md p-6 text-center">
           还没配置任何服务，从下方预置选择一个开始
         </div>
@@ -96,6 +143,8 @@ export function ModelServiceConfig() {
           {services.map(s => (
             <div
               key={s.id}
+              role="group"
+              aria-label={`模型服务 ${s.name}`}
               className="flex items-center justify-between border border-border rounded-md p-3"
             >
               <div className="flex-1 min-w-0">
@@ -113,9 +162,11 @@ export function ModelServiceConfig() {
                 </button>
                 <button
                   onClick={() => handleDelete(s.id)}
+                  disabled={deletingId !== null}
+                  aria-busy={deletingId === s.id}
                   className="text-sm text-danger hover:underline"
                 >
-                  删除
+                  {deletingId === s.id ? '删除中…' : '删除'}
                 </button>
               </div>
             </div>

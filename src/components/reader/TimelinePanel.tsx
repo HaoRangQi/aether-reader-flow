@@ -15,7 +15,7 @@
  *     reading a particular chapter
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useReaderStore } from '@/stores/readerStore';
 import { useTimelineStore } from '@/stores/timelineStore';
 import { TimelineEntryCard } from './TimelineEntryCard';
@@ -34,6 +34,7 @@ const TYPE_LABEL: Record<TaskType, string> = {
 
 export function TimelinePanel() {
   const { book, chapters } = useReaderStore();
+  const bookId = book?.id;
   const {
     entries,
     filter,
@@ -44,14 +45,45 @@ export function TimelinePanel() {
     setQuery,
     reload,
   } = useTimelineStore();
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (panelOpen && book) {
-      void reload(book.id);
-    }
-  }, [panelOpen, book, filter, query, reload]);
+    if (!panelOpen || !bookId) return;
+
+    let cancelled = false;
+
+    void Promise.resolve()
+      .then(() => {
+        if (!cancelled) {
+          setLoading(true);
+          setLoadError(null);
+        }
+        return reload(bookId);
+      })
+      .catch(error => {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : '未知错误');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [panelOpen, bookId, filter, query, reload]);
 
   if (!panelOpen || !book) return null;
+
+  const hasActiveFilter = Boolean(query || filter.chapterId || filter.types?.length);
+  const clearFilters = () => {
+    setQuery('');
+    setFilter({});
+  };
 
   const toggleType = (t: TaskType) => {
     const cur = filter.types ?? [];
@@ -60,14 +92,14 @@ export function TimelinePanel() {
   };
 
   return (
-    <aside className="w-96 shrink-0 h-screen flex flex-col border-l border-divider arf-anim-slide-right">
-      <GlassPanel className="flex-1 m-2 flex flex-col rounded-2xl">
+    <aside className="fixed inset-0 z-40 flex h-screen w-full min-h-0 flex-col border-l border-divider arf-anim-slide-right md:static md:w-96 md:shrink-0">
+      <GlassPanel className="m-2 flex min-h-0 flex-1 flex-col rounded-2xl">
         <header className="flex items-center justify-between px-4 py-3 border-b border-divider">
           <h2 className="font-serif text-base">时间轴</h2>
           <button
             onClick={() => setPanelOpen(false)}
             className="text-muted hover:text-foreground"
-            aria-label="关闭"
+            aria-label="关闭时间轴面板"
           >
             <X size={16} />
           </button>
@@ -80,11 +112,13 @@ export function TimelinePanel() {
             onChange={e => setQuery(e.target.value)}
             placeholder="搜索原文 / AI 回答 / 提问…"
             className="w-full bg-surface border border-border rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-subtle focus:outline-none focus:ring-1 focus:ring-accent"
+            aria-label="搜索时间轴条目"
           />
           <select
             value={filter.chapterId ?? ''}
             onChange={e => setFilter({ ...filter, chapterId: e.target.value || undefined })}
             className="w-full bg-surface border border-border rounded-md px-3 py-1.5 text-sm text-foreground"
+            aria-label="按章节筛选时间轴"
           >
             <option value="">全部章节</option>
             {chapters.map(c => (
@@ -93,13 +127,15 @@ export function TimelinePanel() {
               </option>
             ))}
           </select>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1" role="group" aria-label="按交互类型筛选时间轴">
             {ALL_TYPES.map(t => {
               const active = filter.types?.includes(t) ?? false;
               return (
                 <button
                   key={t}
                   onClick={() => toggleType(t)}
+                  aria-pressed={active}
+                  aria-label={`${active ? '取消筛选' : '筛选'}${TYPE_LABEL[t]}条目`}
                   className={`text-xs px-2 py-1 rounded ${
                     active
                       ? 'bg-accent text-white'
@@ -113,12 +149,30 @@ export function TimelinePanel() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-2">
+        <div
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-2 overscroll-contain"
+          role="status"
+          aria-live="polite"
+          aria-label={entries.length === 0 ? '时间轴空状态' : `时间轴结果，共 ${entries.length} 个条目`}
+        >
+          {loadError ? (
+            <div className="mb-3 text-xs text-danger" role="alert">
+              时间轴加载失败：{loadError}
+            </div>
+          ) : null}
+          {loading ? <div className="mb-3 text-xs text-subtle">正在加载时间轴…</div> : null}
           {entries.length === 0 ? (
             <div className="text-center text-subtle py-12 text-sm">
-              {query || filter.chapterId || filter.types?.length
-                ? '没有匹配的条目'
-                : '开始划词，AI 会陪你读懂'}
+              <p>{hasActiveFilter ? '没有匹配的条目' : '开始划词，AI 会陪你读懂'}</p>
+              {hasActiveFilter ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-3 text-xs text-accent hover:underline"
+                >
+                  清除筛选
+                </button>
+              ) : null}
             </div>
           ) : (
             entries.map(e => <TimelineEntryCard key={e.id} entry={e} />)

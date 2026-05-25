@@ -43,4 +43,33 @@ describe('buildProvider', () => {
     expect(p.protocol).toBe('openai');
     expect(p.baseUrl).toBe('https://api.openai.com/v1');
   });
+
+  it('rejects disabled services before creating a provider', () => {
+    expect(() => buildProvider(baseService({ enabled: false }), '   ')).toThrow(
+      'Model service is disabled: s1',
+    );
+  });
+
+  it('rejects blank API keys before creating a provider', () => {
+    expect(() => buildProvider(baseService(), '   ')).toThrow(
+      'Model service API key is required: s1',
+    );
+  });
+
+  it('trims API keys before wiring OpenAI-compatible providers', () => {
+    const p = buildProvider(
+      baseService({ protocol: 'openai', baseUrl: 'https://api.openai.com/v1' }),
+      '  sk-trimmed  ',
+    );
+
+    expect((p as unknown as { apiKey: string }).apiKey).toBe('sk-trimmed');
+  });
+
+  it('rejects unknown protocols at runtime', () => {
+    const service = { ...baseService(), protocol: 'ollama' } as unknown as ModelService;
+
+    expect(() => buildProvider(service, 'sk-secret')).toThrow(
+      'Unknown provider protocol for service: s1',
+    );
+  });
 });

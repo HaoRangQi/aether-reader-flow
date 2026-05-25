@@ -7,9 +7,14 @@
  *   - listByChapter(chapterId): drill down for "this chapter's discussion"
  *   - search(bookId, query): substring search across original + answer + question
  */
+import Dexie from 'dexie';
 import { getDb } from './db';
 import type { TimelineRepo } from './interfaces';
 import type { TimelineEntry } from '@/types/domain';
+
+function normalizedSearchText(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase() : '';
+}
 
 export class IndexedDBTimelineRepo implements TimelineRepo {
   async create(entry: TimelineEntry): Promise<void> {
@@ -21,9 +26,15 @@ export class IndexedDBTimelineRepo implements TimelineRepo {
   }
 
   async listByBook(bookId: string, limit?: number): Promise<TimelineEntry[]> {
-    const collection = getDb().timeline.where('bookId').equals(bookId);
+    const collection = getDb()
+      .timeline
+      .where('[bookId+timestamp]')
+      .between([bookId, Dexie.minKey], [bookId, Dexie.maxKey])
+      .reverse();
     if (limit !== undefined) {
-      return await collection.limit(limit).toArray();
+      const normalizedLimit = Math.floor(limit);
+      if (!Number.isFinite(normalizedLimit) || normalizedLimit <= 0) return [];
+      return await collection.limit(normalizedLimit).toArray();
     }
     return await collection.toArray();
   }
@@ -38,13 +49,14 @@ export class IndexedDBTimelineRepo implements TimelineRepo {
    * because timelines rarely exceed a few thousand entries per book.
    */
   async search(bookId: string, query: string): Promise<TimelineEntry[]> {
-    const q = query.toLowerCase();
+    const q = query.trim().toLowerCase();
     const all = await this.listByBook(bookId);
+    if (!q) return all;
     return all.filter(
       e =>
-        e.originalText.toLowerCase().includes(q) ||
-        e.aiResponse.toLowerCase().includes(q) ||
-        (e.userInput?.toLowerCase().includes(q) ?? false),
+        normalizedSearchText(e.originalText).includes(q) ||
+        normalizedSearchText(e.aiResponse).includes(q) ||
+        normalizedSearchText(e.userInput).includes(q),
     );
   }
 

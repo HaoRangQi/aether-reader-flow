@@ -33,6 +33,11 @@ interface TimelineState {
 }
 
 const svc = new TimelineService(new IndexedDBTimelineRepo());
+let reloadRequestId = 0;
+
+function normalizeQuery(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 export const useTimelineStore = create<TimelineState>((set, get) => ({
   entries: [],
@@ -42,15 +47,26 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   setPanelOpen: panelOpen => set({ panelOpen }),
   setFilter: filter => set({ filter }),
-  setQuery: query => set({ query }),
+  setQuery: query => set({ query: normalizeQuery(query) }),
 
   reload: async bookId => {
+    const requestId = ++reloadRequestId;
     const { filter, query } = get();
     const entries = query
-      ? await svc.search(bookId, query)
+      ? await svc.search(bookId, query, filter)
       : await svc.listForBook(bookId, filter);
-    set({ entries });
+    if (requestId === reloadRequestId) {
+      set({ entries });
+    }
   },
 
-  clear: () => set({ entries: [], filter: {}, query: '' }),
+  clear: () => {
+    reloadRequestId += 1;
+    set({ entries: [], filter: {}, query: '' });
+  },
 }));
+
+export function _resetTimelineStoreForTests(): void {
+  reloadRequestId = 0;
+  useTimelineStore.setState({ entries: [], filter: {}, query: '', panelOpen: false });
+}
