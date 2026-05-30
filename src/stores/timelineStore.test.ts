@@ -7,11 +7,15 @@ const timelineServiceMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/TimelineService', () => ({
-  TimelineService: vi.fn(() => timelineServiceMocks),
+  TimelineService: vi.fn(function TimelineService() {
+    return timelineServiceMocks;
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBTimelineRepo', () => ({
-  IndexedDBTimelineRepo: vi.fn(() => ({})),
+  IndexedDBTimelineRepo: vi.fn(function IndexedDBTimelineRepo() {
+    return {};
+  }),
 }));
 
 import { _resetTimelineStoreForTests, useTimelineStore } from './timelineStore';

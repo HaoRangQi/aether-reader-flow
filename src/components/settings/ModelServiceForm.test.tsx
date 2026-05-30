@@ -23,7 +23,9 @@ vi.mock('@/lib/ai-service-client', () => ({
 }));
 
 vi.mock('@/adapters/storage/IndexedDBModelServiceRepo', () => ({
-  IndexedDBModelServiceRepo: vi.fn(() => repo),
+  IndexedDBModelServiceRepo: vi.fn(function IndexedDBModelServiceRepo() {
+    return repo;
+  }),
 }));
 
 const preset = {

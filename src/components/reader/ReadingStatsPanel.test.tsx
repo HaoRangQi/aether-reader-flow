@@ -7,27 +7,35 @@ import { ReadingStatsPanel } from './ReadingStatsPanel';
 import type { Book, Chapter } from '@/types/domain';
 
 vi.mock('@/adapters/storage/IndexedDBReadingProgressRepo', () => ({
-  IndexedDBReadingProgressRepo: vi.fn(() => ({
-    get: vi.fn().mockResolvedValue(null),
-  })),
+  IndexedDBReadingProgressRepo: vi.fn(function IndexedDBReadingProgressRepo() {
+    return {
+      get: vi.fn().mockResolvedValue(null),
+    };
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBAnnotationRepo', () => ({
-  IndexedDBAnnotationRepo: vi.fn(() => ({
-    listByBook: vi.fn().mockResolvedValue([]),
-  })),
+  IndexedDBAnnotationRepo: vi.fn(function IndexedDBAnnotationRepo() {
+    return {
+      listByBook: vi.fn().mockResolvedValue([]),
+    };
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBTimelineRepo', () => ({
-  IndexedDBTimelineRepo: vi.fn(() => ({
-    listByBook: vi.fn().mockResolvedValue([]),
-  })),
+  IndexedDBTimelineRepo: vi.fn(function IndexedDBTimelineRepo() {
+    return {
+      listByBook: vi.fn().mockResolvedValue([]),
+    };
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBReadingSessionRepo', () => ({
-  IndexedDBReadingSessionRepo: vi.fn(() => ({
-    listByBook: vi.fn().mockResolvedValue([]),
-  })),
+  IndexedDBReadingSessionRepo: vi.fn(function IndexedDBReadingSessionRepo() {
+    return {
+      listByBook: vi.fn().mockResolvedValue([]),
+    };
+  }),
 }));
 
 const initialConfigState = useConfigStore.getState();

@@ -11,44 +11,15 @@
  */
 import { NextResponse } from 'next/server';
 import { providerErrorMessage, upstreamErrorMessage } from '../_lib/provider-errors';
-
-interface Body {
-  protocol: 'anthropic' | 'openai';
-  baseUrl: string;
-  apiKey: string;
-}
-
-function nonBlankString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function isProviderProtocol(value: unknown): value is Body['protocol'] {
-  return value === 'anthropic' || value === 'openai';
-}
+import { readProviderRequest } from '../_lib/request';
 
 export async function POST(req: Request) {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
-  const rawBody = body as Record<string, unknown>;
-  const baseUrl = nonBlankString(rawBody.baseUrl);
-  const apiKey = nonBlankString(rawBody.apiKey);
-  if (!apiKey || !baseUrl) {
-    return NextResponse.json({ error: 'apiKey and baseUrl required' }, { status: 400 });
-  }
-  if (!isProviderProtocol(rawBody.protocol)) {
-    return NextResponse.json({ error: 'Invalid provider protocol' }, { status: 400 });
-  }
-  const protocol = rawBody.protocol;
-  const cleanBase = baseUrl.replace(/\/+$/, '');
+  const parsed = await readProviderRequest(req, {
+    missingFieldsMessage: 'apiKey and baseUrl required',
+  });
+  if ('error' in parsed) return parsed.error;
+  const { protocol, baseUrl, apiKey } = parsed.body;
+  const cleanBase = baseUrl;
 
   try {
     if (protocol === 'anthropic') {

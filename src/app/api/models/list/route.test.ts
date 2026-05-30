@@ -7,25 +7,37 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/adapters/models/AnthropicProvider', () => ({
-  AnthropicProvider: vi.fn(() => ({
-    listModels: mocks.anthropicListModels,
-  })),
+  AnthropicProvider: vi.fn(function AnthropicProvider() {
+    return {
+      listModels: mocks.anthropicListModels,
+    };
+  }),
 }));
 
 vi.mock('@/adapters/models/OpenAICompatibleProvider', () => ({
-  OpenAICompatibleProvider: vi.fn(() => ({
-    listModels: mocks.openAIListModels,
-  })),
+  OpenAICompatibleProvider: vi.fn(function OpenAICompatibleProvider() {
+    return {
+      listModels: mocks.openAIListModels,
+    };
+  }),
 }));
 
-function makeReq(body: Record<string, unknown>): Request {
+function makeReq(
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+  url = 'https://reader.example.com/api/models/list',
+): Request {
   return {
+    headers: new Headers(headers),
+    url,
     json: async () => body,
   } as unknown as Request;
 }
 
 function makeInvalidJsonReq(): Request {
   return {
+    headers: new Headers(),
+    url: 'https://reader.example.com/api/models/list',
     json: async () => {
       throw new SyntaxError('bad json');
     },
@@ -66,6 +78,48 @@ describe('POST /api/models/list', () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ error: 'Invalid provider protocol' });
+    expect(mocks.openAIListModels).not.toHaveBeenCalled();
+    expect(mocks.anthropicListModels).not.toHaveBeenCalled();
+  });
+
+  it('rejects cross-origin browser requests before parsing the body', async () => {
+    const req = makeReq(
+      {
+        protocol: 'openai',
+        baseUrl: 'https://provider.example.com/v1',
+        apiKey: 'sk-test',
+      },
+      { origin: 'https://evil.example.com' },
+    );
+    const jsonSpy = vi.spyOn(req, 'json');
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden origin' });
+    expect(jsonSpy).not.toHaveBeenCalled();
+    expect(mocks.openAIListModels).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'ftp://provider.example.com/v1',
+    'javascript:alert(1)',
+    'https://user:pass@provider.example.com/v1',
+    'not a url',
+    'https://provider.example.com/v1\nx',
+  ])('rejects unsafe baseUrl %s without constructing a provider', async baseUrl => {
+    const res = await POST(makeReq({
+      protocol: 'openai',
+      baseUrl,
+      apiKey: 'sk-test',
+    }));
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual(
+      baseUrl.includes('\n')
+        ? { error: 'apiKey 与 baseUrl 必填' }
+        : { error: 'Invalid baseUrl' },
+    );
     expect(mocks.openAIListModels).not.toHaveBeenCalled();
     expect(mocks.anthropicListModels).not.toHaveBeenCalled();
   });

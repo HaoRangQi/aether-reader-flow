@@ -8,9 +8,11 @@ import type { ModelService, TaskRouting } from '@/types/domain';
 const listMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/adapters/storage/IndexedDBModelServiceRepo', () => ({
-  IndexedDBModelServiceRepo: vi.fn(() => ({
-    list: listMock,
-  })),
+  IndexedDBModelServiceRepo: vi.fn(function IndexedDBModelServiceRepo() {
+    return {
+      list: listMock,
+    };
+  }),
 }));
 
 const initialConfigState = useConfigStore.getState();

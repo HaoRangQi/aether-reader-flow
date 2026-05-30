@@ -6,11 +6,15 @@ const costMeterMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/CostMeter', () => ({
-  CostMeter: vi.fn(() => costMeterMocks),
+  CostMeter: vi.fn(function CostMeter() {
+    return costMeterMocks;
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBCostRepo', () => ({
-  IndexedDBCostRepo: vi.fn(() => ({})),
+  IndexedDBCostRepo: vi.fn(function IndexedDBCostRepo() {
+    return {};
+  }),
 }));
 
 import { _resetCostStoreForTests, useCostStore } from './costStore';

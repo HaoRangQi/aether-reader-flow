@@ -24,15 +24,19 @@ vi.mock('@/lib/ai-service-client', () => ({
 }));
 
 vi.mock('@/adapters/storage/IndexedDBTimelineRepo', () => ({
-  IndexedDBTimelineRepo: vi.fn(() => ({
-    listByChapter: timelineRepo.listByChapter,
-  })),
+  IndexedDBTimelineRepo: vi.fn(function IndexedDBTimelineRepo() {
+    return {
+      listByChapter: timelineRepo.listByChapter,
+    };
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBChapterRepo', () => ({
-  IndexedDBChapterRepo: vi.fn(() => ({
-    update: chapterRepo.update,
-  })),
+  IndexedDBChapterRepo: vi.fn(function IndexedDBChapterRepo() {
+    return {
+      update: chapterRepo.update,
+    };
+  }),
 }));
 
 const book: Book = {

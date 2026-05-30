@@ -15,49 +15,14 @@ import { NextResponse } from 'next/server';
 import { AnthropicProvider } from '@/adapters/models/AnthropicProvider';
 import { OpenAICompatibleProvider } from '@/adapters/models/OpenAICompatibleProvider';
 import { providerErrorMessage } from '../_lib/provider-errors';
-
-interface Body {
-  protocol: 'anthropic' | 'openai';
-  baseUrl: string;
-  apiKey: string;
-}
-
-function nonBlankString(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function isProviderProtocol(value: unknown): value is Body['protocol'] {
-  return value === 'anthropic' || value === 'openai';
-}
+import { readProviderRequest } from '../_lib/request';
 
 export async function POST(req: Request) {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
-  const rawBody = body as Record<string, unknown>;
-  const baseUrl = nonBlankString(rawBody.baseUrl);
-  const apiKey = nonBlankString(rawBody.apiKey);
-  if (!apiKey || !baseUrl) {
-    return NextResponse.json(
-      { error: 'apiKey 与 baseUrl 必填' },
-      { status: 400 },
-    );
-  }
-  if (!isProviderProtocol(rawBody.protocol)) {
-    return NextResponse.json(
-      { error: 'Invalid provider protocol' },
-      { status: 400 },
-    );
-  }
-  const protocol = rawBody.protocol;
+  const parsed = await readProviderRequest(req, {
+    missingFieldsMessage: 'apiKey 与 baseUrl 必填',
+  });
+  if ('error' in parsed) return parsed.error;
+  const { protocol, baseUrl, apiKey } = parsed.body;
 
   try {
     const provider =

@@ -39,15 +39,21 @@ vi.mock('@/lib/ai-service-client', () => ({
 }));
 
 vi.mock('@/adapters/storage/IndexedDBModelServiceRepo', () => ({
-  IndexedDBModelServiceRepo: vi.fn(() => modelRepo),
+  IndexedDBModelServiceRepo: vi.fn(function IndexedDBModelServiceRepo() {
+    return modelRepo;
+  }),
 }));
 
 vi.mock('@/adapters/storage/IndexedDBConfigRepo', () => ({
-  IndexedDBConfigRepo: vi.fn(() => ({})),
+  IndexedDBConfigRepo: vi.fn(function IndexedDBConfigRepo() {
+    return {};
+  }),
 }));
 
 vi.mock('@/services/ConfigService', () => ({
-  ConfigService: vi.fn(() => configService),
+  ConfigService: vi.fn(function ConfigService() {
+    return configService;
+  }),
 }));
 
 describe('QuickUnlockDialog', () => {

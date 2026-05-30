@@ -7,9 +7,11 @@ import { UploadDialog } from './UploadDialog';
 const uploadMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/BookService', () => ({
-  BookService: vi.fn(() => ({
-    upload: uploadMock,
-  })),
+  BookService: vi.fn(function BookService() {
+    return {
+      upload: uploadMock,
+    };
+  }),
   detectFormat: (file: File, fileName: string) => {
     const name = fileName.toLowerCase();
     if (file.type.includes('pdf') || name.endsWith('.pdf')) return 'pdf';

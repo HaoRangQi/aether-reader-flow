@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST } from './route';
 
-function makeReq(body: Record<string, unknown>): Request {
+function makeReq(
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+  url = 'https://reader.example.com/api/models/test',
+): Request {
   return {
+    headers: new Headers(headers),
+    url,
     json: async () => body,
   } as unknown as Request;
 }
 
 function makeInvalidJsonReq(): Request {
   return {
+    headers: new Headers(),
+    url: 'https://reader.example.com/api/models/test',
     json: async () => {
       throw new SyntaxError('bad json');
     },
@@ -50,6 +58,52 @@ describe('POST /api/models/test', () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({ error: 'Invalid provider protocol' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects cross-origin browser requests before parsing the body', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const req = makeReq(
+      {
+        protocol: 'openai',
+        baseUrl: 'https://provider.example.com/v1',
+        apiKey: 'sk-test',
+      },
+      { origin: 'https://evil.example.com' },
+    );
+    const jsonSpy = vi.spyOn(req, 'json');
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden origin' });
+    expect(jsonSpy).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'ftp://provider.example.com/v1',
+    'javascript:alert(1)',
+    'https://user:pass@provider.example.com/v1',
+    'not a url',
+    'https://provider.example.com/v1\nx',
+  ])('rejects unsafe baseUrl %s before probing providers', async baseUrl => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await POST(makeReq({
+      protocol: 'openai',
+      baseUrl,
+      apiKey: 'sk-test',
+    }));
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual(
+      baseUrl.includes('\n')
+        ? { error: 'apiKey and baseUrl required' }
+        : { error: 'Invalid baseUrl' },
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

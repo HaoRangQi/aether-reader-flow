@@ -20,9 +20,11 @@ vi.mock('@/lib/ai-service-client', () => ({
 }));
 
 vi.mock('@/adapters/storage/IndexedDBTimelineRepo', () => ({
-  IndexedDBTimelineRepo: vi.fn(() => ({
-    listByBook: timelineRepo.listByBook,
-  })),
+  IndexedDBTimelineRepo: vi.fn(function IndexedDBTimelineRepo() {
+    return {
+      listByBook: timelineRepo.listByBook,
+    };
+  }),
 }));
 
 vi.mock('@/components/shared/ModelSwitcher', () => ({

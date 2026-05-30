@@ -9,9 +9,11 @@ import { ModelSwitcher } from './ModelSwitcher';
 const listMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/adapters/storage/IndexedDBModelServiceRepo', () => ({
-  IndexedDBModelServiceRepo: vi.fn(() => ({
-    list: listMock,
-  })),
+  IndexedDBModelServiceRepo: vi.fn(function IndexedDBModelServiceRepo() {
+    return {
+      list: listMock,
+    };
+  }),
 }));
 
 const initialConfigState = useConfigStore.getState();
